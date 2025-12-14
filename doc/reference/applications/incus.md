@@ -1,32 +1,32 @@
 # Incus
 
-The Incus application includes the current Incus feature release as packaged from the [Zabbly stable channel](https://github.com/zabbly/incus). It includes everything needed to run containers, OCI images, and virtual machines.
+Incusアプリケーションは[Zabbly安定板チャンネル](https://github.com/zabbly/incus)からのIncusの機能リリースの最新版を含みます。コンテナー、OCIイメージ、仮想マシンを稼働させるのに必要なすべてを含んでいます。
 
-At least one trusted client certificate must be provided in the Incus preseed, otherwise it will be impossible to authenticate to any API endpoint or the web UI post-install.
+少なくとも1つのクライアント証明書をIncusのプリシードに渡す必要があります。これがないとAPIエンドポイントやインストールの後処理用のウェブUIにアクセスする際に認証ができません。
 
-## Default configuration
+## デフォルト設定
 
-If the Incus seed field `apply_defaults` is `true`, the Incus application will perform the following initialization steps:
+Incusのシードの`apply_defaults`フィールドが`true`の場合、Incusアプリケーションは以下の初期化ステップを実行します：
 
-* Create a default ZFS-backed storage pool "local" for use by Incus. This storage pool will use all remaining free space on the main system drive.
+* ZFSを使ったデフォルトの"local"ストレージプールをIncusで使うために作成します。このストレージプールはメインシステムドライブの空きスペースの残りすべてを使います。
 
-* Create a local network bridge `incusbr0`.
+* ローカルネットワークブリッジ`incusbr0`を作成します。
 
-* Set the list of provided trusted client certificates.
+* シードで指定された信頼されたクライアント証明書を設定します。
 
-* Listen on port 8443 on all network interfaces.
+* すべてのネットワークインターフェース上で8443番ポートでリッスンします。
 
-## Install seed details
+## インストールシードの詳細
 
-Important seed fields include:
+主なシードフィールドは以下のものがあります：
 
-* `apply_defaults`: If `true`, apply a reasonable set of defaults for configuring Incus.
+* `apply_defaults`: `true`に設定すると、Incusを設定する際に妥当なデフォルト値を適用します。
 
-* `preseed`: A struct referencing Incus' `InitPreseed` configuration options. For details, please review Incus' [API](https://github.com/lxc/incus/blob/main/shared/api/init.go).
+* `preseed`: Incusの`InitPreseed`設定オプションを参照する構造体。詳細はIncusの[API](https://github.com/lxc/incus/blob/main/shared/api/init.go)を参照してください。
 
-## Additional features
+## 追加の機能
 
-Two additional applications exist which extend the main Incus application:
+メインのIncusアプリケーションを拡張する追加のアプリケーションが2つあります：
 
-* `incus-ceph`: Adds [Ceph](../services/ceph.md) client support
-* `incus-linstor`: Adds [Linstor](../services/linstor.md) satellite support
+* `incus-ceph`: [Ceph](../services/ceph.md)クライアントサポートを追加
+* `incus-linstor`: [Linstor](../services/linstor.md)のサテライトサポートを追加

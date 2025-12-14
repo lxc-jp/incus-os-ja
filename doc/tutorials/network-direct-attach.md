@@ -1,6 +1,6 @@
-# Directly attach instances to host network
+# インスタンスをホストネットワークに直接アタッチ
 
-When running [Incus](../reference/applications/incus.md) on IncusOS, by default you will get a NAT'ed bridged network `incusbr0`:
+[Incus](../reference/applications/incus.md)をIncusOS上で動かす際、デフォルトではNATされたブリッジネットワーク`incusbr0`を使います：
 
 ```
 gibmat@futurfusion:~$ incus network list
@@ -11,9 +11,9 @@ gibmat@futurfusion:~$ incus network list
 +----------+--------+---------+----------------+---------------------------+----------------------------+---------+---------+
 ```
 
-However, sometimes you may want to attach a container or virtual machine directly to the host's network. This is easily accomplished by assigning the `instances` [role](../reference/system/network.md) to the appropriate interfaces or bonds.
+しかし、コンテナーや仮想マシンをホストネットワークに直接アタッチしたい場合もあります。これは`instances` [role](../reference/system/network.md)を適切なインターフェースあるいはボンドに割り当てることで簡単に実現できます。
 
-First, get the current IncusOS network configuration:
+まず、現在のIncusOSのネットワーク設定を取得します：
 
 ```
 gibmat@futurfusion:~$ incus admin os system network show
@@ -52,7 +52,7 @@ state:
       type: interface
 ```
 
-Then, edit the interface and/or bond to add the appropriate role by running `incus admin os system network edit`:
+次に、`incus admin os system network edit`を実行してインターフェースまたはボンドを編集して適切なロールを追加します：
 
 ```
 config:
@@ -68,7 +68,7 @@ config:
     - instances
 ```
 
-After the configuration change is applied, a new unmanaged bridge will appear:
+設定の変更を反映したあと、アンマネージドのブリッジが現れます：
 
 ```
 gibmat@futurfusion:~$ incus network list
@@ -81,7 +81,7 @@ gibmat@futurfusion:~$ incus network list
 +----------+--------+---------+----------------+---------------------------+----------------------------+---------+---------+
 ```
 
-Create a managed network using that network interface:
+このネットワークインターフェースを使ってマネージドのネットワークを作成します：
 
 ```
 gibmat@futurfusion:~$ incus network create enp5s0 parent=enp5s0 --type=physical
@@ -95,7 +95,7 @@ gibmat@futurfusion:~$ incus network list
 +----------+----------+---------+----------------+---------------------------+----------------------------+---------+---------+
 ```
 
-Now, you can configure an instance to directly connect to the host's physical network:
+これで、インスタンスをホストの物理ネットワークに直接接続するように設定できます：
 
 ```
 gibmat@futurfusion:~$ incus launch images:debian/13 debian-nat
@@ -112,7 +112,7 @@ gibmat@futurfusion:~$ incus list
 +---------------+---------+-----------------------+------------------------------------------------+-----------+-----------+
 ```
 
-You can also make this network the default for all instances:
+このネットワークをすべてのインスタンスのデフォルトとすることもできます：
 
 ```
 gibmat@futurfusion:~$ incus profile device set default eth0 network=enp5s0

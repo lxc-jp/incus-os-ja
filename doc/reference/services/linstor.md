@@ -1,19 +1,19 @@
 # Linstor
 
-The [Linstor](https://linbit.com/linstor/) service allows connecting a Linstor deployment. In addition to Incus, the `incus-linstor` application must be installed to enable this service.
+[Linstor](https://linbit.com/linstor/)サービスはLinstor環境に接続できるようにします。このサービスを有効化するには、Incusに加えて`incus-linstor`アプリケーションのインストールが必要です。
 
-## Configuration options
+## 設定オプション
 
-The full API structs for the service can be viewed [online](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_linstor.go).
+このサービスの完全なAPIの構造体は[オンライン](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_linstor.go)でご覧いただけます。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `enabled`: If `true`, enable the Linstor service.
+* `enabled`: `true`の場合、Linstorサービスを有効化します。
 
-* `listen_address`: The address and port to listen on (default to all addresses).
+* `listen_address`: リッスンするアドレスとポート（デフォルトではすべてのアドレス）。
 
-* `tls_server_certificate`: When using TLS, the server certificate to use.
+* `tls_server_certificate`: TLS利用時に使用するサーバー証明書。
 
-* `tls_server_key`: When using TLS, the server key to use.
+* `tls_server_key`: TLS利用時に使用するサーバー鍵。
 
-* `tls_trusted_certificates`: When using TLS, the list of certificates to trust.
+* `tls_trusted_certificates`: TLS利用時に信頼する証明書のリスト。

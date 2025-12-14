@@ -1,57 +1,57 @@
-# Installing in a VirtualBox virtual machine
+# VirtualBoxの仮想マシン内にインストール
 
-IncusOS can be installed in a VirtualBox virtual machine. A bit of hand-holding is required to properly clear the default Secure Boot keys, but afterwards the installation proceeds normally.
+IncusOSはIncusの仮想マシン内にインストールできます。デフォルトのセキュアブートの鍵を適切にクリアするために一手間必要ですが、その後は通常どおりインストールできます。
 
-## Get install media
+## インストールメディアの取得
 
-Follow the instructions to [get an IncusOS image](../download.md). This document will assume an ISO image is used.
+[IncusOSイメージの取得](../download.md)の手順に従ってください。このドキュメントではISOイメージを使うことを前提とします。
 
-## Create a new virtual machine
+## 仮想マシンを作成する
 
-Create a new virtual machine. Set the OS Distribution to "Debian".
+仮想マシンを作成します。OSディストリビューションを"Debian"に設定します。
 
-![VirtualBox VM configuring ISO](../../images/virtualbox-vm-configure-iso.png)
+![VirtualBox VMでISOを設定](../../images/virtualbox-vm-configure-iso.png)
 
-### Secure Boot and TPM configuration
+### セキュアブートとTPMの設定
 
-IncusOS depends on Secure Boot and a v2.0 TPM. When configuring the virtual machine, make the following selections under the "System" section (must be in "Expert" mode):
+IncusOSではセキュアブートとv2.0のTPMが必要です。仮想マシンを設定する際は、"System"セクションで以下のように設定してください（"Expert"モードが必要）：
 
-* Set the TPM version to 2.0
+* TPMのバージョンを2.0にします
 
-* Under Features, check both "UEFI" and "Secure Boot"
+* Featuresでは"UEFI"と"Secure Boot"にチェックをつけます
 
-![VirtualBox VM configuring Secure Boot and TPM](../../images/virtualbox-vm-configure-secure-boot-tpm.png)
+![VirtualBox VMでセキュアブートとTPMを設定](../../images/virtualbox-vm-configure-secure-boot-tpm.png)
 
-### CPU, memory, network, and local storage
+### CPU、メモリー、ネットワーク、ローカルストレージ
 
-Configure the CPU and memory for the virtual machine as desired and add at least one network interface.
+仮想マシンのCPUとメモリをお好みに合わせて設定し、少なくとも1つのネットワークインターフェースを追加します。
 
-Remember that the main system drive must be at least 50GiB or larger.
+メインのシステムドライブは50GiB以上にすることを忘れないでください。
 
-## IncusOS installation
+## IncusOSのインストール
 
-### Clearing default Secure Boot keys
+### デフォルトのセキュアブートの鍵をクリアー
 
-On first boot, VirtualBox will display an error about the virtual machine failing to boot. Click "Cancel" to dismiss the message, then ensure focus is on the virtual machine's window and press any key to enter the boot manager.
+初回ブート時、VirtualBoxは仮想マシンがブートに失敗というエラーを表示します。"Cancel"を押してメッセージを閉じ、仮想マシンのウィンドウにフォーカスがあることを確認してから何かキーを押すとブートマネージャーに入ります。
 
-![VirtualBox VM first boot error](../../images/virtualbox-vm-first-boot-error.png)
+![VirtualBox VMの初回起動時のエラー](../../images/virtualbox-vm-first-boot-error.png)
 
-Once in the boot manager, navigate to `Device Manager > Secure Boot Configuration` and select `Reset Secure Boot Keys`. Confirm the reset, press `F10` to save the changes, then reboot the virtual machine.
+ブートマネージャーに入ったら`Device Manager > Secure Boot Configuration`に移動し`Reset Secure Boot Keys`を選択します。リセットを確認し、`F10`を押して変更を保存し、仮想マシンを再起動します。
 
-![VirtualBox VM clearing Secure Boot keys](../../images/virtualbox-vm-clearing-secure-boot-keys.png)
+![VirtualBox VMでセキュアブートの鍵をクリアー](../../images/virtualbox-vm-clearing-secure-boot-keys.png)
 
-### Performing the install
+### インストールを実行
 
-After rebooting the virtual machine after clearing the Secure Boot keys, IncusOS will begin its installation.
+セキュアブートの鍵をクリアーした後仮想マシンを再起動したら、IncusOSがインストールを開始します。
 
-![VirtualBox VM installing IncusOS](../../images/virtualbox-vm-install.png)
+![VirtualBox VMでIncusOSをインストール](../../images/virtualbox-vm-install.png)
 
-Upon completion of the install, stop the virtual machine and remove the CDROM device.
+インストールが完了したら、仮想マシンを停止しCDROMデバイスを取り除きます。
 
-![VirtualBox VM installation complete](../../images/virtualbox-vm-install-complete.png)
+![VirtualBox VMでインストール完了](../../images/virtualbox-vm-install-complete.png)
 
-## IncusOS is ready for use
+## IncusOSを使い始めます
 
-Start the virtual machine, and IncusOS will perform its first boot configuration. Once complete, follow the instructions for [accessing the system](../access.md).
+仮想マシンを起動すると、IncusOSが初回ブート時の設定を実行します。完了したら、[システムにアクセス](../access.md)の手順に従ってください。
 
-![VirtualBox VM running IncusOS](../../images/virtualbox-vm-incusos-running.png)
+![VirtualBox VMでIncusOSを実行](../../images/virtualbox-vm-incusos-running.png)

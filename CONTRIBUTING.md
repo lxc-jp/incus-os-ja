@@ -1,46 +1,37 @@
-# Contributing
-## Pull requests
+# 貢献する
+## プルリクエスト
 
-Changes to this project should be proposed as pull requests on Github at:  
+このプロジェクトへの変更はGitHub上でプルリクエストとして提案してください：
 [`https://github.com/lxc/incus-os`](https://github.com/lxc/incus-os)
 
-Proposed changes will then go through code review there and be merged in the main branch.
+提案された変更はそこでコードレビューを経てmainブランチにマージされます。
 
-## Code of Conduct
+## 行動規範
 
-When contributing, you must adhere to the Code of Conduct, which is available at:  
+貢献する際、以下の場所にある行動規範に従う必要があります：
 [`https://github.com/lxc/incus-os/blob/main/CODE_OF_CONDUCT.md`](https://github.com/lxc/incus-os/blob/main/CODE_OF_CONDUCT.md)
 
-## License and copyright
+## ライセンスと著作権
 
-By default, any contribution to this project is made under the Apache 2.0 license.
+デフォルトでは、このプロジェクトへの貢献はApache 2.0ライセンスになります。
 
-The author of a change remains the copyright holder of their code (no copyright assignment).
+変更の著者が自身のコード著作権保持者のままとなります（著作権の譲渡なし）。
 
-## No Large Language Models (LLMs) or AI tools
+## Large Language Models (LLMs)やAIツールの使用禁止
 
-All contributions to this project are expected to be done by human
-beings or through standard predictable tooling (e.g. scripts, formatters, ...).
+このプロジェクトへの貢献は人間やスタンダードな予測可能なツール（スクリプト、フォーマッターなど）でなされることを期待しています。
 
-We expect all contributors to be able to reason about the code that they
-contribute and explain why they're taking a particular approach.
+すべての貢献者は彼らが貢献するコードについて判断し、特定のアプローチをとっている理由を説明できることを私たちは期待します。
 
-LLMs and similar predictive tools have the annoying tendency of
-producing large amount of low quality code with subtle issues which end
-up taking the maintainers more time to debug than it would have taken to
-write the code by hand in the first place.
+LLMや同様の予測ツールは微妙な問題を含む質の低いコードを大量に生成し、最初から人手で書いたコードをデバッグするよりもメンテナーがより長時間を費やすことになってしまうという迷惑な傾向があります。
 
-Any attempt at hiding the use of LLMs or similar tools in IncusOS contributions
-will result in a revert of the affected changes and a ban from the project.
+IncuSOSの貢献でLLMや同様のツールの使用を隠そうとする試みは影響を受ける変更を取り消し、プロジェクトから追放される結果をもたらします。
 
-## Developer Certificate of Origin
+## 開発者起源証明書
 
-To improve tracking of contributions to this project we use the DCO 1.1
-and use a "sign-off" procedure for all changes going into the branch.
+このプロジェクトへの貢献の追跡性を改善するため、私たちはDCO 1.1を使い、ブランチへのすべての変更に対して「サイン・オフ（sign-off）」を使います。
 
-The sign-off is a simple line at the end of the explanation for the
-commit which certifies that you wrote it or otherwise have the right
-to pass it on as an open-source contribution.
+サイン・オフは単にコミットの説明の最後に置かれる単純な行で、それによりあなたがコミットを書いたか、あるいはコミットをオープンソースの貢献として手渡すことを証明します。
 
 > Developer Certificate of Origin
 > Version 1.1
@@ -78,14 +69,16 @@ to pass it on as an open-source contribution.
 >     maintained indefinitely and may be redistributed consistent with
 >     this project or the open source license(s) involved.
 
-An example of a valid sign-off line is:
+（訳注：日本語参照訳が https://developercertificate.opensource.jp/ にあります）
+
+有効なサイン・オフの行の例は：
 
 ```
 Signed-off-by: Random J Developer <random@developer.org>
 ```
 
-Use your real name and a valid e-mail address.
-Sorry, no pseudonyms or anonymous contributions are allowed.
+本名と有効なe-mailアドレスを使ってください。
+申し訳ありませんが、仮名や匿名の貢献は認めません。
 
-We also require each commit be individually signed-off by their author,
-even when part of a larger set. You may find `git commit -s` useful.
+たとえそれが大きなセットの一部だったとしても、私たちは各コミットを個々に著者がサイン・オフすることを要求します。
+`git commit -s`が便利に使えます。

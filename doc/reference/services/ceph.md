@@ -1,13 +1,13 @@
 # Ceph
 
-The [Ceph](https://ceph.io/) service allows connecting a Ceph storage cluster. In addition to Incus, the `incus-ceph` application must be installed to enable this service.
+[Ceph](https://ceph.io/)サービスはCephストレージクラスターに接続できるようにします。このサービスを有効にするには、Incusに加えて`incus-ceph`アプリケーションのインストールが必要です。
 
-## Configuration options
+## 設定オプション
 
-The full API structs for the service can be viewed [online](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_ceph.go).
+このサービスの完全なAPIの構造体は[オンライン](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_ceph.go)でご覧いただけます。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `enabled`: If `true`, enable the Ceph service.
+* `enabled`: `true`の場合、Cephサービスを有効化します。
 
-* `clusters`: A map of Ceph clusters to connect to.
+* `clusters`: 接続先のCephクラスターのマップ。

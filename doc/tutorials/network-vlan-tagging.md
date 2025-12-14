@@ -1,10 +1,10 @@
-# Applying VLAN tagging to physical networks
+# VLANタギングを物理ネットワークに適用
 
-IncusOS can assign automatic VLAN tagging for one or more VLANs to any configured interface or bond.
+IncusOSは設定されたインターフェースまたはボンドに対して1つ以上のVLANに自動のVLANタギングを割り当てられます。
 
-This tutorial will assume the network interface is named `enp5s0` and the VLAN ID we want to set is `1234`.
+このチュートリアルではネットワークインターフェースは`enp5s0`という名前であり、設定したいVLAN IDは`1234`であるということにします。
 
-To assign the VLAN tagging, we need to make sure the interface is assigned both the `instances` [role](../reference/system/network.md) and that the `vlan_tags` property consists of a list of desired VLAN ID(s). This can be done by running `incus admin os system network edit` and edit the configuration like follows:
+VLANタギングを割り当てるには、インターフェースが`instances` [role](../reference/system/network.md)と希望するVLAN IDの一覧からなる`vlan_tags`プロパティーの両方を持つ必要があります。これは`incus admin os system network edit`を実行して以下のように設定を編集することで実現できます：
 
 ```
 config:
@@ -22,7 +22,7 @@ config:
     - 1234
 ```
 
-After the configuration change is applied, a new unmanaged bridge will appear:
+設定の変更を反映したら、アンマネージドのブリッジが現れます：
 
 ```
 gibmat@futurfusion:~$ incus network list
@@ -36,7 +36,7 @@ gibmat@futurfusion:~$ incus network list
 
 ```
 
-Create a managed network for VLAN `1234`:
+VLAN `1234`のマネージドネットワークを作成します：
 
 ```
 gibmat@futurfusion:~$ incus network create enp5s0.1234 parent=enp5s0 vlan=1234 --type=physical
@@ -53,7 +53,7 @@ gibmat@futurfusion:~$ incus network list
 +-------------+----------+---------+-----------------+---------------------------+----------------------------+---------+---------+
 ```
 
-Now, you can configure an instance to use VLAN `1234`:
+これでインスタンスがVLAN `1234`を使うように設定できます：
 
 ```
 gibmat@futurfusion:~$ incus launch images:debian/13 debian --network enp5s0.1234
@@ -66,7 +66,7 @@ gibmat@futurfusion:~$ incus list
 +--------+---------+-----------------------+------------------------------------------------+-----------+-----------+
 ```
 
-You can also make this network the default for all instances:
+このネットワークをすべてのインスタンスのデフォルトにすることもできます：
 
 ```
 gibmat@futurfusion:~$ incus profile device set default eth0 network=enp5s0.1234

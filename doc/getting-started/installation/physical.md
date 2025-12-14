@@ -1,72 +1,56 @@
-# Installing on a physical machine
+# 物理マシンへのインストール
 
-## Getting and preparing the install media
+## インストールメディアの取得と準備
 
-Follow the instructions to [get an IncusOS image](../download.md).
+[IncusOSイメージの取得](../download.md)の手順に従ってください。
 
-If installing the machine using a virtual CD-ROM drive, use the ISO format.
-If installing using a USB stick or a virtual USB drive, use the USB format.
+仮想CD-ROMドライブを使うマシンにインストールする場合はISO形式を使ってください。
+USBメモリか仮想USBドライブを使ってインストールする場合はUSB形式を使ってください。
 
-When using the USB image, make sure it's written directly to the device,
-no changes should be made to the built-in partitions or data.
+USBイメージを使う場合、デバイスに直接書き込むようにしてください。組み込みのパーティションやデータを一切変更しないようにしてください。
 
-Once ready, connect the USB stick or attach the virtual media and reboot the server into its firmware menu (BIOS).
+準備できたら、USBメモリを挿すか仮想メディアを取り付けてサーバーを再起動しファームウェアメニュー（BIOS）を開いてください。
 
-## Configuring the BIOS
+## BIOSを設定
 
-Every vendor uses a different firmware configuration layout, but in general, there are three things to configure:
+ベンダーごとにファームウェアー設定のレイアウトは異なりますが、一般に以下の3つを設定します：
 
-- Disable any RAID mode configuration option (known to break IncusOS boot on some platforms)
-- Enable the TPM 2.0 device (if not already enabled)
-- Turn on and configure Secure Boot
-- Change the boot order to boot from the install media
+- RAIDモード設定オプションを無効にする（プラットフォームによってはIncusOSのブートが失敗します）
+- TPM 2.0デバイスを有効にする（まだ有効でない場合）
+- セキュアブートを有効にして設定する
+- インストールメディアから起動するようにブートオーダーを変更する
 
-![Secure Boot overview](../../images/physical-secureboot-overview.png)
+![セキュアブートの概要](../../images/physical-secureboot-overview.png)
 
-Secure Boot is the trickiest one of those and exact options vary between vendors.
+セキュアブートが一番厄介で設定方法はベンダーごとに異なります。
 
-There are two main options when it comes to Secure Boot:
+セキュアブートに関しては2つの主なオプションがあります：
 
-- Manually clear some of the existing keys and enroll the IncusOS ones
-- Clear everything and put the system in Setup Mode
+- いくつかの既存のキーを手動でクリアーしてIncusOSのキーを登録する
+- すべてをクリアーしてシステムをセットアップモードにする
 
-Secure Boot Setup Mode is the easiest as it's often just one option to
-select and the system will then boot with an empty Secure Boot state,
-allowing the IncusOS install media to enroll the keys directly.
+セキュアブートのセットアップモードが一番簡単です。というのはたいてい1つのオプションを選ぶだけでシステムはセキュアブートの鍵が空の状態でブートしIncusOSが鍵をメディアからインストールできるからです。
 
-The downside to this approach is that all preexisting keys get removed.
-This is fine in most situations, but in some scenarios you may have
-hardware which requires firmware components to be loaded during boot,
-this includes some network cards and storage controllers.
+このアプローチの欠点は既存のすべての鍵が削除されることです。たいていの場合はこれは問題ないですが、起動時にファームウェアーコンポーネントが必要なハードウェアーをお持ちかもしれません。ネットワークカードやストレージコントローラーにもこのようなハードウェアーが存在します。
 
-In those scenarios, you'll want to instead manually enroll the IncusOS
-KEK and DB keys, assuming your firmware provides an option for this.
+これらのシナリオでは、代わりにIncuSOSのKEKとDBの鍵を手動でインストールが必要です。ただし、ファームウェアーがこのためのオプションを提供していることが前提となります。
 
-![Secure Boot keys](../../images/physical-secureboot-keys.png)
+![セキュアブートの鍵](../../images/physical-secureboot-keys.png)
 
-The install media contains a `keys` folder which has the `.der` version
-of all three keys that need to be enrolled. Exact mechanism for manual
-enrollment varies widely between vendors.
+インストールメディアに`keys`フォルダーがあり、そこに`.der`形式の登録が必要な3つの鍵が含まれています。手動での登録方法はベンダーによってかなり異なります。
 
-Once the Secure Boot configuration is complete, go to the boot order
-page and make sure that the system will boot from the install media,
-then finally save all settings and reboot the system.
+セキュアブートの設定が完了したら、ブートオーダーのページでシステムがインストールメディアから起動するように変更し、最後に設定を保存してシステムを再起動します。
 
-## IncusOS installation
+## IncusOSのインストール
 
-Depending on Secure Boot settings, the system will now either directly
-boot into the installer, or it will first handle key import, then reboot
-and boot into the installer.
+セキュアブートの設定によって、システムは直接インストーラーで起動する場合と、まず鍵のインポートを処理して再起動してインストーラーが起動する場合があります。
 
-When handling key import (when using Setup Mode), a countdown will show
-up, at the end of which the system will import the keys and reboot.
+（セットアップモードを使って）鍵のインポートを処理する場合は、カウントダウンが表示され、最後にシステムが鍵をインポートして再起動します。
 
-At the end of the installation, you will be prompted to disconnect the
-install media, the system will then reboot into the installed IncusOS
-system.
+インストールの最後に、インストールメディアを取り外して、インストールされたIncusOSシステムを使って再起動します。
 
-## IncusOS is ready for use
+## IncusOSを使い始めます
 
-After reboot, IncusOS will perform its first boot configuration. Once complete, follow the instructions for [accessing the system](../access.md).
+再起動後、IncusOSは初回のブート時に設定を行います。完了したら、[システムへアクセス](../access.md)の手順に従ってください。
 
-![Installed system](../../images/physical-installed.png)
+![インストールされたシステム](../../images/physical-installed.png)

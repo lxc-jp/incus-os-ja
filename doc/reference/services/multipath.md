@@ -1,13 +1,13 @@
-# Multipath
+# マルチパス
 
-The Multipath service allows configuring multipath storage devices.
+マルチパスサービスはマルチパスストレージデバイスを設定できるようにします。
 
-## Configuration options
+## 設定オプション
 
-The full API structs for the service can be viewed [online](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_multipath.go).
+このサービスの完全なAPIの構造体は[オンライン](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_multipath.go)でご覧いただけます。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `enabled`: If `true`, enable the Multipath service.
+* `enabled`: `true`の場合、Multipathサービスを有効化します。
 
-* `wwns`: An array of {abbr}`WWN (World Wide Name)`s to configure for multipath.
+* `wwns`: マルチパスを設定するための{abbr}`WWN (World Wide Name)`の配列。

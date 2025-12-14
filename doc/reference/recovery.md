@@ -1,61 +1,45 @@
-# System recovery
+# システムリカバリー
 
-IncusOS is designed to be fairly resilient to failures, but there may be times when
-your system misbehaves. Here are some suggestions that might be useful if you ever
-need to recover an IncusOS system.
+IncusOSは障害に対して非常に耐性があるように設計されていますが、システムが誤動作を起こすことがあるかもしれません。
+IncusOSシステムをリカバーする必要に迫られたときに、いくつかの提案があります。
 
-## Try booting into the previous image
+## 前のイメージでの起動を試す
 
-IncusOS uses an A/B update mechanism to reboot onto the newer version while keeping
-the previous version available should a revert be needed. You can reboot your server
-and select the prior version at the boot menu. If that works, it means that something
-went wrong with the latest update -- please report a bug!
+IncusOSはA／Bアップデート機構を使っており、新しいバージョンで再起動するだけでなく前のバージョンを利用可能な状態で維持しており必要に応じて前のバージョンに戻せます。
+サーバーを再起動しブートメニューで前のバージョンを選択できます。もしそれがうまくいったら、最新の更新に何か問題があったことを意味します。バグ報告してください！
 
-## Encryption recovery key(s)
+## 暗号リカバリーキー
 
-IncusOS binds encryption of the install drive to the system's TPM state and stores any
-additional pool encryption keys on that encrypted drive. You can retrieve an
-encryption recovery passphrase for the install drive as well as any pool encryption
-keys via the API. (You did do that and saved those somewhere safe _before_ we ended up here,
-right?)
+IncusOSはインストールドライブの暗号化をシステムのTPMの状態にバインドし、暗号化ドライブの追加のプールの暗号鍵を保管します。
+インストールドライブの暗号リカバリーパスフレーズとプール暗号鍵をAPIで取得できます。
+（ここの状況になる_前に_、これを実行してこれらの鍵を安全な場所に保管していましたよね？）
 
-If something unexpectedly changes the TPM state of your system, you can still boot but
-will need to manually provide an encryption recovery passphrase. After IncusOS starts
-up, you can use the API to force-reset the TPM encryption bindings which should allow
-automatic decryption of the install drive at boot time.
+システムのTPMの状態が意図せず変更されてしまった場合でも、ブートはできますが暗号リカバリーパスフレーズを手動で指定する必要があります。
+IncusOSの起動後、APIを使ってTPMの暗号バインディングを強制リセットすると、起動時にインストールドライブを自動で復号できるはずです。
 
-Alternatively, with the recovery key(s), you can remove the affected drive(s) to a different
-machine and unlock them to access/migrate any data they contain.
+あるいは、リカバリーキーを使って、影響を受けたドライブを取り外して他のマシンに移動し、ロック解除して含まれるデータにアクセス／マイグレートできます。
 
 ```{tip}
-IncusOS has some basic recovery key complexity rules:
+IncusOSはいくつかの基本的なリカバリーキーの複雑度のルールを持っています：
 
-* Must be at least 15 characters long
-* Must contain at least one special character
-* Must consist of at least five unique characters
+* 少なくとも15文字以上
+* 少なくとも1つ記号を含む
+* 少なくとも5つのユニークな文字を含まなければならない
 ```
 
-## Drive failure
+## ドライブの障害
 
-If your install drive fails, sorry but there's not much that can be done other than a
-new install. :(
+インストールドライブに障害が起きた場合、残念ながら再インストール以外にできることは多くありません。 :(
 
-If a drive in a storage pool fails, and the pool has sufficient redundancy, you can
-remove the failed drive and replace it with a new one via the API. The underling pool driver
-will begin data recovery process(es), which you can monitor via querying the status of the
-storage endpoint.
+ストレージプール内のドライブに障害が起きた場合、プールに十分な冗長性があれば、APIを使って障害が起きたドライブを新しいドライブに置き換えられます。
+下層のプールドライバーがデータリカバリープロセスを開始し、ストレージエンドポイントの状態を問い合わせることでモニタリングできます。
 
-## Recovery mode
+## リカバリーモード
 
-A special "recovery mode" can be triggered early in the IncusOS boot sequence if a data partition
-labeled `RESCUE_DATA` and formatted as FAT or ISO is present. IncusOS will automatically
-attempt to find and run a hot-fix script named `hotfix.sh.sig` at the root of that partition,
-followed by any OS or application updates contained in an `update/` directory also at the root
-of the recovery partition.
+`RESCUE_DATA`とラベル付けされFATかISOでフォーマットされたデータパーティションが存在する場合、IncusOSのブートシーケンスの早い段階で特別な「リカバリーモード」が発動します。
+IncusOSは自動的にそのパーティションのルートにある`hotfix.sh.sig`というスクリプトを見つけてホットフィクスを実行します。次に、こちらもリカバリーパーティションのルートにある`update/`ディレクトリーに含まれるOSやアプリケーションの更新も適用します。
 
-Both the hot-fix script and update metadata JSON file must be properly signed by the same
-certificate used to distribute normal IncusOS updates. This prevents an attacker from simply
-being able to connect a random USB stick and then running arbitrary commands with full
-system access.
+ホットフィクススクリプトと更新のメタデータJSONはともに通常のIncusOSの更新を配布するのに使うのと同じ証明書で適切に署名されている必要があります。
+これにより攻撃者が任意のUSBメモリーを接続して任意のコマンドをフルシステムアクセスで実行することを防ぎます。
 
-The recovery mode is intended as an option of last resort.
+リカバリーモードは最後の手段の選択肢であるという想定です。

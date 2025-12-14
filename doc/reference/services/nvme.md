@@ -1,13 +1,13 @@
 # NVMe
 
-The NVMe service allows connecting a remote NVMe storage device over fibre channel or TCP.
+NVMeサービスはファイバーチャネルまたはTCP越しのリモートのNVMeストレージデバイスに接続できるようにします。
 
-## Configuration options
+## 設定オプション
 
-The full API structs for the service can be viewed [online](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_nvme.go).
+このサービスの完全なAPIの構造体は[オンライン](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_nvme.go)でご覧いただけます。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `enabled`: If `true`, enable the NVMe service.
+* `enabled`: `true`の場合、NVMeサービスを有効かします。
 
-* `targets`: An array of NVMe targets, each of which consists of an address, port, and transport type.
+* `targets`: NVMeターゲットの配列。各要素はアドレス、ポート、トランスポートタイプで構成されます。

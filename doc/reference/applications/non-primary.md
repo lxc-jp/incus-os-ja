@@ -1,11 +1,11 @@
-# Non-primary applications
+# 非プライマリーアプリケーション
 
-IncusOS uses non-primary applications to enhance the functionality of a primary application or provide debugging support.
+IncusOSはプライマリーアプリケーションの機能を強化したりデバッグのサポートを提供するために非プライマリーアプリケーションを使用します。
 
 ```{toctree}
 :maxdepth: 1
 
-Debug </reference/applications/debug>
+デバッグ </reference/applications/debug>
 Incus-Ceph </reference/applications/incus-ceph>
 Incus-Linstor </reference/applications/incus-linstor>
 ```

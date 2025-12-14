@@ -1,13 +1,13 @@
 # iSCSI
 
-The iSCSI service allows connecting a remote iSCSI storage device over TCP.
+iSCSIサービスはTCP越しにリモートのiSCSIストレージデバイスに接続できるようにします。
 
-## Configuration options
+## 設定オプション
 
-The full API structs for the service can be viewed [online](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_iscsi.go).
+このサービスの完全なAPIの構造体は[オンライン](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_iscsi.go)でご覧いただけます。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `enabled`: If `true`, enable the iSCSI service.
+* `enabled`: `true`の場合、iSCSIサービスを有効化します。
 
-* `targets`: An array of iSCSI targets, each of which consists of an address, port, and iSCSI target.
+* `targets`: iSCSIターゲットの配列。各要素はアドレス、ポート、iSCSIターゲットで構成されます。

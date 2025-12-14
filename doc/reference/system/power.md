@@ -1,16 +1,16 @@
-# Power
+# 電源
 
-## Rebooting IncusOS
+## IncusOSを再起動する
 
-IncusOS can be rebooted via
+IncusOSを再起動するは以下のコマンドを実行します。
 
 ```
 incus admin os system reboot
 ```
 
-## Powering off IncusOS
+## IncusOSの電源を落とす
 
-IncusOS can be safely powered off via
+IncusOSの電源を安全に落とすには以下のコマンドを実行します。
 
 ```
 incus admin os system poweroff

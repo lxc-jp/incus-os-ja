@@ -1,22 +1,22 @@
-# System security
-IncusOS actively relies on both UEFI Secure Boot and TPM for its boot security and encryption.
+# システムセキュリティー
+IncusOSはUEFIセキュアブートとTPMの両方にブートのセキュリティーと暗号化を積極的に依存しています。
 
-## Assumptions
+## 前提
 
-- Prior to installing IncusOS, Secure Boot on the server will be placed into Setup mode.
-   - If a specific PK or third-party db certificates are required, configuration of the PK/KEK/db certificates must be performed prior to starting the IncusOS install.
-   - If no PK/KEK/db certificates are present, IncusOS will auto-enroll the Secure Boot certificates as part of the install.
-- Post-install Secure Boot will run in User mode. This will allow IncusOS to automatically apply db and dbx updates that have been signed by an IncusOS KEK certificate. If the IncusOS PK key is enrolled, we could also update the KEK keys, although this is expected to be an incredibly rare operation.
-   - Alternatively, if Secure Boot is in Deployed mode, db/dbx/KEK key updates will have to be applied out-of-band by IT staff. This will likely be an unsupported configuration.
-- A new IncusOS Secure Boot Key will be created for each year and published well in advance.
-   - Keys will be valid for 18-24 months (TDB) to allow time for rollover. Secure Boot doesn't actually check expiry of certificates, but there is a simple check in `incus-osd` prior to applying an OS update.
-   - The first release of IncusOS after January 1st will pickup and use the new year's signing certificate. Some time after that has happened, the prior year's certificate can be invalidated and an update placing that certificate into dbx can be published via API.
+- IncusOSのインストール前に、サーバーのセキュアブートをセットアップモードにすること。
+   - 特定のPKやサードーパーティーのdb証明書が必要な場合、PK/KEK/db証明書の設定はIncusOSのインストールを開始する前に行っておく必要があります。
+   - PK/KEK/db証明書が存在しない場合、IncusOSはインストールの一部としてセキュアブート証明書を自動登録します。
+- インストール後のセキュアブートはユーザーモードで稼働すること。これによりIncusOSのKEK証明書で署名されたdbとdbxの更新をIncusOSが自動的に適用できます。IncusOSのPK鍵が登録された場合、KEK鍵も更新できるかもしれまｓねんが、これは非常にまれな運用だと期待されます。
+   - あるいは、セキュアブートがデプロイドモードの場合、db/dbx/KEKの鍵の更新はITスタッフにより手動で適用する必要があります。これはサポート対象外の設定になりそうです。
+- IncusOSのセキュアブートの鍵は毎年作成され、十分事前に発行されます。
+   - 鍵の有効期間はロールオーバーの時間的な余裕を持たせるため18～24か月になります（予定）。セキュアブートは証明書の期限を実際にはチェックしませんが、OSの更新を適用する前に`incus-osd`でシンプルなチェックを行います。
+   - 1月1日以降のIncusOSの最初のリリースでは新年の署名用証明書を取得し使用します。それが起きてからしばらくしたら、昨年の証明書は無効化され、証明書をdbxに配置する更新がAPIを使って発行できます。
 
-## Certificate hierarchy
-IncusOS relies on a hierarchy of TLS certificate authorities and certificates as shown below. Note that Secure Boot doesn't perform TLS-style validation of the certificates.
+## 証明書の階層
+IncusOSは以下に示すようなTLS証明書の認証局と証明書の階層に依存しています。セキュアブートはTLSスタイルの証明書の検証は行わないことに注意してください。
 
-- IncusOS Root CA should use latest standards (ECDSA, etc)
-- IncusOS PK CA and below certificates are limited to RSA 2048 due to the Secure Boot standard
+- IncusOSのルートCAは（ECDSAなどの）最新の標準を使うべきです。
+- IncusOS PK CAと配下の証明書はセキュアブートの標準の制限によりRSA 2048に限定されます。
 
 ```
         Incus OS - Secure Boot E1
@@ -30,75 +30,75 @@ IncusOS relies on a hierarchy of TLS certificate authorities and certificates as
 Incus OS - Secure Boot 2025 R1   Incus OS - Secure Boot 2026 R1    ......
 ```
 
-## Use of Secure Boot variables
+## セキュアブート変数の使用
 
-- PK: OEM/owner-provided or Incus OS Secure Boot PK R1
-- KEK: Secure Boot KEK R1
-- db: IncusOS signing key(s)
-   - A new signing key will be generated each year and published in advance
-   - 6-12 month overlap after January 1st when new signing key is placed into service
-- dbx: Old IncusOS signing key(s)
-   - After sufficient time for key rotation, old IncusOS signing keys will be revoked
-- MOK: (not used/supported in IncusOS setup)
+- PK: OEM／オーナー提供あるいはIncus OSセキュアブート PK R1
+- KEK: セキュアブート KEK R1
+- db: IncusOSの署名鍵
+   - 新しい署名鍵は毎年生成され、事前に発行されます
+   - 新しい署名鍵がサービスに提供される際、1月1日以降6～12か月のオーバーラップがあります
+- dbx: 古いIncusOSの署名鍵
+   - キーのローテーションから十分な期間の後、IncusOSの署名鍵は無効にされます
+- MOK: （IncusOSのセットアップでは使用されずサポートもされません）
 
-### Implementation notes
+### 実装詳細
 
-- Updates to db and dbx can be signed offline with an enrolled KEK or PK key, then distributed and automatically applied on any system
-   - Only replacing existing values or appending are supported
-   - Removal of a specific value requires local access to the KEK or PK private key
-- Updates to KEK can be signed offline with an enrolled PK key, and then distributed like db and dbx updates
-   - If IncusOS PK isn't present, KEK updates will have to be applied out-of-band
-   - KEK updates are expected to be extremely rare
-- IncusOS will receive db/dbx/KEK updates via the configured Provider in a similar manner to OS and application updates
-- An update to IncusOS signed with a key not yet in the db or present in dbx will not be allowed to install, since on reboot the system would refuse to boot the new image
-- Updating a trusted signing key and applying an IncusOS update will be two distinct operations, with a reboot in between. This is because updating Secure Boot state and expected TPM PCR values is critical to get right, and it's much simpler logic to only allow one change (a new trusted key or an update with a changed signing key) at a time.
+- dbとdbxの更新は登録されたKEKまたはPKの鍵でオフラインで署名できます。そして任意のシステムに配布して自動で適用できます。
+   - 既存の値を置き換えるか追加するかのみがサポートされます。
+   - 特定の値を削除するにはKEKあるいはPK秘密鍵へのローカルアクセスが必要です。
+- KEKの更新は登録されたPK鍵でオフラインで署名できます。そしてdbとdbxの更新のように配布できます。
+   - IncusOSのPKが存在しない場合、KEKの更新は手動で適用する必要があります。
+   - KEKの更新は非常にまれであると期待できます。
+- IncusOSはdb/dbx/KEKの更新をOSとアプリケーションの更新と同様に設定されたプロバイダーから受け取ります。
+- またdbやdbxに存在しない鍵で署名されたIncusOSの更新はインストールできません。これはシステムの再起動時に新しいイメージで起動するのを拒否するためです。
+- 信頼された署名鍵を更新するのとIncusOSの更新を提供するのは2つの異なるオペレーションであり、間に再起動が入ります。これはセキュアブートの状態と期待されるTPM PCRの値を更新するのは正しく行うのが極めて重要であり、一度に1つの変更だけを許す（新しい信頼された鍵あるいは変更された署名鍵による更新）ほうがロジックが大幅にシンプルになるからです。
 
-## Secure Boot key updates
-KEK, db, and dbx updates are signed offline and then made available via a Provider's API:
+## セキュアブート鍵の更新
+KEK、db、dbxの更新はオフラインで署名され、プロバイダーのAPIで公開されます：
 
-- Published as a simple list of `.auth` files, with one update per file
-- Filename pattern of `<VAR>_<SHA256 fingerprint>.auth`: `db_8A78635EA12B2EF676045B661187E08D1412253220A1BD02EF79D177302DB83F.auth`, `dbx_DA39EF49E3F5D7B902ECE6CA338883623F61DC671ABE10DF2E7B1CBDEC4A2B47.auth`, etc
-   - This naming convention makes it trivial for a client to quickly retrieve a list of all available keys, identify any missing ones, and then download needed updates
-- Update check performed on same cadence as OS update checks (every six hours by default):
-   - Apply each UEFI variable update one at a time, starting with KEK, then db, then dbx
-   - Will need to reboot after each update; will automatically reboot if update applied during IncusOS startup, otherwise will require a user triggering a reboot
-   - Will not apply a dbx update if the current or backup image are signed by it to prevent bricking
+- `.auth`ファイルのシンプルなリストとして提供され、1つのファイルにつき1つの更新を含みます。
+- `<VAR>_<SHA256 fingerprint>.auth`のファイル名のパターン: `db_8A78635EA12B2EF676045B661187E08D1412253220A1BD02EF79D177302DB83F.auth`、`dbx_DA39EF49E3F5D7B902ECE6CA338883623F61DC671ABE10DF2E7B1CBDEC4A2B47.auth`など
+   - この命名規則はクライアントが利用可能なすべての鍵のリストを素早く取得し、足りない鍵を特定し、必要な更新をダウンロードすることを自明にします。
+- 更新のチェックはOSの更新チェックと同じ頻度（デフォルトで6時間ごと）で行われます：
+   - UEFI変数の更新はKEK、db、dbxの順に一度に1つずつ適用します。
+   - 各アップデート後に再起動が必要です。IncusOSの起動中にアップデートが適用された場合再自動で再起動しますが、自動で再起動できない場合はユーザーが再起動する必要があります。
+   - 現在のイメージあるいはバックアップイメージがdbxで署名されている場合、使用不可能になることを避けるため、dbxの更新は適用しません。
 
-### Update availability and integrity
+### 更新の利用可能性と完全性
 
-- An attacker could block IncusOS update checks to prevent application of Secure Boot key updates
-- Each `.auth` file is signed by a KEK certificate already enrolled on the machine IncusOS is running on. If the file is tampered with, enrollment will fail, so there is no special need to protect or checksum received updates.
+- 攻撃者がIncusOSの更新チェックをブロックしセキュアブート鍵の更新の適用を妨害するかもしれません。
+- 各`.auth`ファイルはIncusOSが稼働しているマシンに登録済みのKEK証明書で署名されています。ファイルが改ざんされた場合、登録は失敗しますので、受け取った更新を保護したりチェックサムを計算する必要性は特にありません。
 
-## Use of TPM PCRs
-IncusOS relies on two PCRs (7 & 11) to bind disk encryption keys.
+## TPM PCRの使用
+IncusOSはディスクの暗号鍵をバインドするために2つのPCR（7と11）に依存しています。
 
 ### PCR 7
-PCR 7 is computed based on the current Secure Boot state and PK/KEK/db/dbx values. The final value of this PCR is calculated by UEFI before the systemd-boot UEFI stub starts. Binding to this PCR allows us to ensure data is only available when Secure Boot is enabled and IncusOS certificates are present. (Prevents an attacker from unlocking the disk on a different machine or launching attacks via live boot media.)
+PCR 7は現在のセキュアブートの状態をPK/KEK/db/dbの値に基づいて算出されます。このPCRの最終的な値はsystemd-boot UEFIスタブが開始する前にUEFIにより計算されます。このPCRにバインドすることでセキュアブートが有効でIncusOS証明書が存在する場合にのみデータが利用可能であることを保証できます。（攻撃者が別のマシンでディスクをロック解除したりライブのブートメディアを使って攻撃を行うことを防ぎます。）
 
-The calculation of PCR 7 is straightforward, and performed whenever a signing key is added or revoked, and when an IncusOS update is signed with a different key than the current running system:
+PCR 7の計算は簡単で、署名鍵が追加されたり無効化されるたびに実行され、現在稼働中のシステムとは別の鍵でIncusOSの更新が署名されている場合：
 
-- Fetch TPM event log and verify that the recomputed PCR 7 value matches the current TPM PCR 7 value
-- Apply UEFI variable update
-- Replay TPM event log, computing the future PCR 7 value using current UEFI variable values
-- Use current TPM state to update PCR 7 binding of LUKS volumes using predicted PCR 7 value on next boot
+- TPMのイベントログを取得し、再計算したPCR 7の値が現在のTPM RCP 7の値と一致することを検証します
+- UEFI変数の更新を適用します
+- TPMのイベントログを再生し、現在のUEFI変数値を使って将来のPCR 7の値を算出します
+- 現在のTPMの状態を使ってLUKSボリュームのPCR 7バインディングを次回起動時の予想されるPCR 7の値を使って更新します
 
 ### PCR 11
-PCR 11 is computed based on the running UKI, and computed at various points during the boot process. Combined with a properly signed UKI image, this allows us to detect any tampering of the UKI and refuse to unlock the encrypted disks. Computation of PCR 11 is complex; systemd has `systemd-measure` which we rely on to create the PCR 11 policy which is combined with the Secure Boot signing key to bind the TPM. The advantage is that this approach is much more flexible than an exact hash binding like we do with PCR 7, and allows the build process to fully predict PCR 11 values and embed those values into the resulting signed UKI images.
+PCR 11は稼働中のUKIをベースに算出され、ブートプロセスのさまざまな時点で算出されます。適切に署名されたUKIイメージと組み合わせることで、UKIの改ざんを検知し暗号化されたディスクのロック解除を拒否することができます。PCR 11の算出は複雑です。systemdはPCR 11ポリシーを作成するために依存する`systemd-measure`をもっており、そのポリシーはセキュアブートの署名鍵と組み合わせてTPMをバインドします。この手法の利点はPCR 7で行うような完全なハッシュのバインディングよりもはるかに柔軟であり、ビルドプロセスがPCR 11の値を完全に予測して結果のUKIイメージにその値を埋め込むことができるという点です。
 
-IncusOS only ever needs to worry about re-binding PCR 11 when the Secure Boot key used by an UKI is changed, such as the yearly key transition. This is because the PCR 11 policies are bound to the TPM using the current Secure Boot signing key, and if it changes on reboot the TPM state won't match and auto-unlock will fail. The steps taken when installing an IncusOS update with a different Secure Boot key are:
+IncusOSがPCR 11の再バインディングについて気にする必要があるのは、毎年の鍵の更新のように、UKIで使われるセキュアブート鍵が変更される場合のみです。これはPCR 11ポリシーは現在のセキュアブートの署名鍵を使ってTPMにバインドされ、それが再起動時に変わった場合はTPMの状態が合致せず自動のロック解除が失敗するためです。異なるセキュアブート鍵を使ってIncusOSの更新をインストールする際にとられる手順は：
 
-- Verify the key of the updated UKI is present in the UEFI db variable, and isn't in dbx. This prevents installing an update which will immediately fail to boot with a Secure Boot policy violation.
-- Replace the existing systemd-boot UEFI stub with a newly signed one from the pending OS update. `systemd-sysupdate` doesn't typically update the systemd-boot stub, but we need to ensure it's updated to a version signed by the new key.
-- Changing the signature on the systemd-boot stub will affect the PCR 7 value at next boot, so follow the steps outlined above to predict the new PCR 7 value.
-- Re-bind the TPM PCR 11 policies with the new signing certificate and predicted PCR 7 value. Doing this invalidates the current TPM state, so we must rely on a recovery key known to IncusOS to update the LUKS header. The update is performed in as an atomic process as possible, to prevent having the LUKS header in a state where it doesn't have a TPM enrolled.
+- 更新されたUKIの鍵がUEFI db変数内に存在し、dbxには存在しないことを検証する。これにより更新のインストールがセキュアブートのポリシー違反で起動に直ちに失敗することを防ぎます。
+- 既存のsystemd-boot UEFIスタブを保留中のOSの更新からの新しい署名されたものに置き換える。`systemd-sysupdate`は通常はsystemd-bootスタブを更新しませんが、新しい鍵で署名されたものに確実に更新する必要があります。
+- systemd-bootスタブの署名を変更すると次回起動時のPCR 7の値に影響がでます。そこで上記の工程に従って新しいPCR 7の値を予測します。
+- TPM PCR 11のポリシーを新しい署名証明書と予測したPCR 7の値で再バインドします。これをすることで現在のTPMの状態は無効化されますので、LUKSヘッダーを更新するにはIncusOSが知っているリカバリーキーに依存する必要があります。LUKSヘッダーがTPMに登録されていない状態になるのを避けるため、更新はできるだけアトミックなプロセスで実行されます。
 
-### Implications
-Any unexpected change to PCR values will cause auto-unlock to fail, and require the entry of a recovery password to boot the system. When a new Secure Boot key is used, after applying the update and rebooting, attempting to reboot into the backup image will always require the use of the recovery password. Attempting to apply a further OS update while running from the backup image will also very likely fail, since the TPM will be in an unusable state.
+### 関連事項
+PCRの値の予期せぬ変更は自動のロック解除が失敗し、システムを起動するためにリカバリーパスワードの入力が必要になることにつながります。新しいセキュアブートの鍵が使われる場合、更新を適用して再起動した後、バックアップイメージでの起動を試みるには必ずリカバリーパスワードの使用が必要です。バックアップイメージからの稼働中にさらなるOSの更新を適用することは、TPMが使えない状態になるため、失敗する可能性が非常に高いです。
 
-### Useful tools
-systemd has `systemd-pcrlock` which is useful to inspect current PCR values and how they were computed during the boot process.
+### 有用なツール
+systemdには現在のPCRの値とその値が起動プロセス中にどのように算出されたかを調べるのに役立つ`systemd-pcrlock`があります。
 
-## Useful links
+## 有用なリンク
 
 - [UEFI Specification - Creating trust relationships](https://uefi.org/specs/UEFI/2.11/32_Secure_Boot_and_Driver_Signing.html#firmware-os-key-exchange-creating-trust-relationships)
 - [UEFI Specification - Signature database update](https://uefi.org/specs/UEFI/2.11/32_Secure_Boot_and_Driver_Signing.html#signature-database-update)

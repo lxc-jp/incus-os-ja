@@ -1,11 +1,11 @@
-# Tutorials
-The following tutorials demonstrate various ways to configure and use IncusOS.
+# チュートリアル
+以下のチュートリアルはIncusOSを設定し使用するためのいろいろな方法をデモンストレーションします。
 
 ```{toctree}
 :maxdepth: 1
-Expanding the "local" storage pool </tutorials/storage-expand-local-pool>
-Preparing a storage volume for Incus </tutorials/storage-preparing-volume-incus>
-Import existing Incus instances from an unencrypted pool </tutorials/storage-import-unencrypted-incus-pool>
-Directly attaching instances to host network </tutorials/network-direct-attach>
-Applying VLAN tagging to physical networks </tutorials/network-vlan-tagging>
+"local"ストレージプールを拡張 </tutorials/storage-expand-local-pool>
+Incus用にストレージボリュームを用意 </tutorials/storage-preparing-volume-incus>
+暗号化されていないプールから既存のIncusのインスタンスをインポート </tutorials/storage-import-unencrypted-incus-pool>
+インスタンスをホストネットワークに直接アタッチ </tutorials/network-direct-attach>
+VLANタギングを物理ネットワークに適用 </tutorials/network-vlan-tagging>
 ```

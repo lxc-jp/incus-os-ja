@@ -1,9 +1,7 @@
-# Services
-IncusOS system services are optional system-wide features, typically
-used to integrate with an external system.
+# サービス
+IncusOSのシステムサービスは概して外部システムと統合するために使うようなオプショナルなシステム全体の機能です。
 
-The majority of services today are centered around connecting to
-external storage or networking.
+今日のサービスの大多数は外部のストレージやネットワークに接続することに集中しています。
 
 ```{toctree}
 :maxdepth: 1
@@ -12,11 +10,11 @@ Ceph </reference/services/ceph>
 iSCSI </reference/services/iscsi>
 Linstor </reference/services/linstor>
 LVM </reference/services/lvm>
-Multipath </reference/services/multipath>
+マルチパス </reference/services/multipath>
 NVMe </reference/services/nvme>
 OVN </reference/services/ovn>
 Tailscale </reference/services/tailscale>
 USBIP </reference/services/usbip>
 
-Shared API </reference/services/shared-api>
+共通API </reference/services/shared-api>
 ```

@@ -2,58 +2,51 @@
 ```{include} ../CONTRIBUTING.md
 ```
 
-## Building locally
-You can build IncusOS locally. Only users specifically interested in the
-development and testing of new IncusOS features should need to do this.
+## ローカルでのビルド
+IncusOSはローカルでビルドできます。IncusOSの新機能の開発や検証に特別に興味のあるユーザーだけがこれを行う必要があります。
 
-We currently only support building IncusOS from a Debian 13 system
-though other Debian releases and Debian derivatives like Ubuntu may work
-as well.
+現時点ではDebian 13システム上でのみIncusOSのビルドをサポートしていますが、他のDebianのリリースやUbuntuなどのDebian派生ディストリビューションでもビルドできるかもしれません。
 
-After cloning the repository from GitHub, simply run:
+GitHubからレポジトリをクローンした後、単に以下のコマンドを実行します：
 
     make
 
-By default the build will produce a raw image in the `mkosi.output/` directory,
-suitable for writing to a USB stick. It is also possible to build an ISO
-image if you need to boot from a (virtual) CD-ROM device:
+デフォルトでは、ビルドは`mkosi.output/`ディレクトリー内に生のイメージを生成します。このイメージはUSBメモリーに書くのに適しています。（仮想）CD-ROMデバイスから起動する必要がある場合、ISOイメージをビルドすることもできます：
 
     make build-iso
 
-## Testing
-To test a locally built raw image in an Incus virtual machine, run:
+## テスト
+Incus仮想マシン内でローカルでビルドした生のイメージをテストするには、以下のコマンドを実行します：
 
     make test
 
-After IncusOS has completed its installation and is running in the virtual machine, to load
-applications run:
+IncusOSがインストールを完了し仮想マシンで稼働中になった後、アプリケーションをロードするには以下のコマンドを実行します：
 
     make test-applications
 
-To test the update process, build a new image and update to it with:
+更新のプロセスをテストするには、新しいイメージをビルドし以下のコマンドで更新します：
 
     make
     make test-update
 
-## Debugging
+## デバッグ
 
-When IncusOS is run in an Incus virtual machine, it is possible to `exec` into the running
-system to facilitate debugging of the system:
+IncusOSがIncus仮想マシン内で稼働する場合、システムのデバッグを容易にするために稼働中のシステム内に`exec`できます：
 
     incus exec test-incus-os bash
 
-You can also easily side-load a custom `incus-osd` binary into the virtual machine.
-Execution from the root disk isn't allowed, so a memory file system is required:
+また仮想マシンにカスタムの`incus-osd`バイナリーを簡単にサイドロードすることもできます。
+ルートディスクからの実行は許可されないので、メモリファイルシステムが必要です：
 
     incus exec test-incus-os -- mkdir -p /root/dev/
     incus exec test-incus-os -- mount -t tmpfs tmpfs /root/dev/
 
-Once that's in place, you can build the new binary:
+ひとたび配置されたら、新しいバイナリーをビルドできます：
 
     cd ./incus-osd/
     go build ./cmd/incus-osd/
 
-And finally put it in place and have the system run it:
+そして最後にバイナリーを配置しシステムに実行させます：
 
     incus exec test-incus-os -- umount -l /usr/local/bin/incus-osd || true
     incus exec test-incus-os -- rm -f /root/dev/incus-osd
@@ -61,10 +54,10 @@ And finally put it in place and have the system run it:
     incus exec test-incus-os -- mount -o bind /root/dev/incus-osd /usr/local/bin/incus-osd
     incus exec test-incus-os -- pkill -9 incus-osd
 
-Those last two steps can be repeated every time you want to build and run a new binary.
-The first step must be run every time the system is restarted.
+最後の2ステップは新しいバイナリーをビルドと実行したい都度繰り返すことができます。
+最初のステップはシステムが再起動するたびに毎回実行する必要があります。
 
-When debugging, it's a good idea to install the `debug` application which contains a variety of useful tools, including a basic text editor (`nano`).
+デバッグする際、基本的なテキストエディター（`nano`）などのさまざまな有用なツールを含む`debug`アプリケーションをインストールするとよいでしょう。
 
     incus exec test-incus-os bash
     curl --unix-socket /run/incus-os/unix.socket socket/1.0/applications -X POST -d '{"name": "debug"}'

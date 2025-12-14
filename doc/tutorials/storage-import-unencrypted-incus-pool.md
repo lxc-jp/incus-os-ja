@@ -1,15 +1,15 @@
-# Import existing Incus instances from an unencrypted pool
+# 暗号化されていないプールから既存のIncusのインスタンスをインポート
 
-Scenario: An existing server is running Incus with an unencrypted ZFS storage pool configured for its instances. We would like to install IncusOS and then migrate the existing instances to an encrypted storage volume that will be managed by IncusOS.
+シナリオ：既存のサーバーでインスタンス用に設定された暗号化されていないZFSストレージプールでIncusを稼働しています。IncusOSをインストールし、IncusOSで管理されている暗号化されたストレージボリュームに既存のインスタンスをまいグレーとします。
 
-Prerequisites:
+事前条件：
 
-* An existing unencrypted ZFS storage pool used by Incus
-* One or more drives to create a new ZFS storage pool
+* Incusで使われている暗号化されていない既存のZFSストレージプール
+* 新しいZFSストレージプールを作成するための1つ以上のドライブ
 
-## Existing Incus setup
+## 既存のIncusの設定
 
-We'll assume the existing ZFS storage pool is called `oldpool` throughout this tutorial. We don't care too much about the pool's configuration, except that it is unencrypted:
+このチュートリアルでは既存のZFSストレージプールは`oldpool`という名前であるとします。プールの設定については暗号化されていないということ以外は特に気にしません：
 
 ```
 bash-5.2# zfs get encryption oldpool
@@ -17,7 +17,7 @@ NAME     PROPERTY    VALUE        SOURCE
 oldpool  encryption  off          default
 ```
 
-Incus has configured this ZFS pool as a storage pool called `incus`:
+Incusは`incus`と呼ばれるストレージプールとしてZFSプールを設定しています：
 
 ```
 gibmat@futurfusion:~$ incus storage list
@@ -30,7 +30,7 @@ gibmat@futurfusion:~$ incus storage list
 +-------+--------+--------------------------------------+---------+---------+
 ```
 
-There are two instances on the server:
+サーバー上には2つのインスタンスがあります：
 
 ```
 gibmat@futurfusion:~$ incus list
@@ -43,21 +43,21 @@ gibmat@futurfusion:~$ incus list
 +-------------+---------+-----------------------+--------------------------------------------------+-----------------+-----------+
 ```
 
-Ensure all instances are stopped before powering down the system to install IncusOS:
+IncusOSをインストールするためにシステムの電源を落とす前にすべてのインスタンスを確実に停止してください：
 
 ```
 gibmat@futurfusion:~$ for instance in $(incus list --columns n --format compact,noheader); do incus stop $instance; done
 ```
 
-## Install IncusOS and create a new encrypted storage volume
+## IncusOSをインストールし暗号化されたストレージボリュームを作成
 
-Follow the [instructions to install IncusOS](../getting-started/installation.md) on the server.
+サーバー上で[IncusOSをインストールする手順](../getting-started/installation.md)に従ってください。
 
-Once IncusOS is installed, we will create a new ZFS pool `newpool` via the IncusOS API. In this tutorial, for simplicity it will consist of a single drive, but more complex/robust pool configuration is possible.
+IncusOSをインストールしたら、IncusOS APIでZFSプール`newpool`を作成します。このチュートリアルでは簡単のためプールは単一のドライブを使うものとしますが、より複雑で堅牢なプールの設定も可能です。
 
-`oldpool` exists on `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1` and `newpool` will be created on `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk2`.
+`oldpool`は`/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1`上に存在し`newpool`は`/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk2`上に作られます。
 
-Show the system's current storage state:
+システムの現在のストレージ設定は以下のとおりです：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage show
@@ -111,7 +111,7 @@ state:
       use: '-'
 ```
 
-Create `newpool`:
+`newpool`を作成します:
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage edit
@@ -126,13 +126,13 @@ config:
     type: zfs-raid0
 ```
 
-Create a storage volume for Incus to use in `newpool`:
+Incusが`newpool`で使用するストレージボリュームを作成します：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage create-volume -d '{"pool":"newpool","name":"incus","use":"incus"}'
 ```
 
-Show that the new ZFS pool and volume have indeed been created:
+ZFSプールとボリュームが確かに作られたことを確認します：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage show
@@ -201,9 +201,9 @@ state:
       use: incus
 ```
 
-## Create a new Incus storage pool
+## Incusのストレージプールを作成
 
-Next, create a new Incus storage pool called `incus_new` using the new storage volume:
+次に、今作成したストレージボリュームを使って`incus_new`というIncusのストレージプールを作成します：
 
 ```
 gibmat@futurfusion:~$ incus storage create incus_new zfs source=newpool/incus
@@ -219,10 +219,10 @@ gibmat@futurfusion:~$ incus storage list
 
 ```
 
-## Use `incus admin recover` to import existing instances
+## `incus admin recover`を使って既存のインスタンスをインポート
 
 ```{note}
-The ability to run `incus admin recover` against a remote server, such as IncusOS, requires Incus version 6.19 or greater.
+IncusOSのようなリモートサーバーに対して`incus admin recover`を実行するには、Incusのバージョン6.19以降が必要です。
 ```
 
 ```
@@ -251,15 +251,15 @@ Would you like those to be recovered? (yes/no) [default=no]: yes
 Starting recovery...
 ```
 
-## Move existing instances to new storage volume
+## 既存のインスタンスを新しいストレージボリュームに移動
 
-Now that we have both the old and new ZFS pools available, we can move the instances from the unencrypted `oldpool` to the encrypted `newpool`:
+新旧のZFSプールが準備できたので、インスタンスを暗号化されていない`oldpool`から暗号化されている`newpool`に移動できます：
 
 ```
 gibmat@futurfusion:~$ for instance in $(incus list --columns n --format compact,noheader); do incus move $instance $instance --storage incus_new; done
 ```
 
-Once complete, delete the old Incus storage pool:
+完了したら、古いIncusのストレージプールを削除します：
 
 ```
 gibmat@futurfusion:~$ incus storage delete incus
@@ -274,9 +274,9 @@ gibmat@futurfusion:~$ incus storage list
 +-----------+--------+--------------------------------------+---------+---------+
 ```
 
-## Start instances and verify running
+## インスタンスを起動し稼働していることを確認
 
-Now you can start the migrated instances on the IncusOS server using the encrypted storage volume:
+これでIncusOSのサーバーにマイグレートされたインスタンスを暗号化されたストレージボリュームを使って開始できます：
 
 ```
 gibmat@futurfusion:~$ for instance in $(incus list --columns n --format compact,noheader); do incus start $instance; done
@@ -291,9 +291,9 @@ gibmat@futurfusion:~$ incus list
 
 ```
 
-## Wipe old disk(s)
+## 古いディスクを消去
 
-Finally, you can wipe the disk(s) that composed the old, unencrypted storage pool:
+最後に、古い暗号化されていないプールを構成していたディスクを消去できます：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage wipe-drive -d '{"id":"/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1"}'
@@ -302,4 +302,4 @@ WARNING: The IncusOS API and configuration is subject to change
 Are you sure you want to wipe the drive? (yes/no) [default=no]: yes
 ```
 
-Once complete they can be used to create another pool or extend an existing one. Or you can physically remove them from the IncusOS server.
+完了したらディスクは別のプールを作成したり既存のプールを拡張するのに使えます。あるいはIncusOSサーバーから物理的に取り外すこともできます。

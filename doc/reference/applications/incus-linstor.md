@@ -1,3 +1,3 @@
 # Incus Linstor
 
-The Incus Linstor (`incus-linstor`) application installs Linstor satellite support for Incus deployments needing to use [Linstor storage](../services/linstor.md).
+Incus Linstor （`incus-linstor`）アプリケーションは[Linstorストレージ](../services/linstor.md)を使う必要があるIncus環境にLinstorサテライトのサポートをインストールします。

@@ -1,62 +1,62 @@
-# Network
+# ネットワーク
 
-IncusOS supports complex network configurations consisting of interfaces, bonds, and VLANs. By default, IncusOS will configure each discovered interface to automatically acquire IPv4/IPv6 addresses, DNS, and NTP information from the local network. More complex network setups can be configured via an [install seed](../seed.md), or post-install via the network API.
+IncusOSはインターフェース、ボンド、VLANで構成される複雑なネットワーク設定をサポートします。デフォルトでは、IncusOSは見つかった各デバイスを設定し、自動的にIPv4/IPv6アドレス、DNSとNTPの情報をローカルネットワークから取得します。より複雑なネットワーク設定は[インストールシード](../seed.md)で設定するか、インストール後にネットワークAPIで設定できます。
 
-Before applying any new/updated network configuration, basic validation checks are performed. If this check fails, or the network fails to come up properly as reported by `systemd-networkd`, the changes will be reverted to minimize the chance of accidentally knocking the IncusOS system offline.
+ネットワーク設定の追加／更新を反映する前に、基本的な確認が実行されます。チェックが失敗した場合、あるいはネットワークが正常に起動しないと`systemd-networkd`に報告された場合、IncusOSシステムが誤ってオフラインになってしまう危険性を最小限にするため、変更は取り消されます。
 
-Be aware that changing network configuration may result in a brief period of time when the system is unreachable over the network.
+ネットワーク設定を変更すると、短時間システムがネットワーク越しに利用できない結果になるかもしれないことにご注意ください。
 
 ```{note}
-IncusOS automatically configures each interface and bond as a network bridge. This allows for easy out-of-the-box configuration of bridged NICs for containers and virtual machines.
+IncusOSは各インターフェースとネットワークブリッジを自動的に構成します。これによりコンテナーと仮想マシンでそのままで簡単に使えるブリッジNICが設定されます。
 ```
 
-## Roles
+## ロール
 
-Each interface, bond or VLAN can be assigned one or more _roles_, which are used by IncusOS to control how the network device is used:
+各インターフェース、ボンド、VLANは1つ以上の_ロール_を割り当てることができ、それはIncusOSがネットワークデバイスをどのように使うかを制御するために使います：
 
-* `cluster`: The device is used for internal cluster communication
-* `instances`: The device should be made available for use by Incus containers or virtual machines
-* `management`: The device is used for management
-* `storage`: The device is used for network-attached storage connectivity
+* `cluster`: デバイスを内部のクラスター通信に使う
+* `instances`: デバイスをIncusのコンテナーや仮想マシンで使えるようにする
+* `management`: デバイスを管理に使う
+* `storage`: デバイスをネットワークにアタッチされたストレージへの接続に使う
 
-By default, the `cluster` and `management` roles will be assigned.
+デフォルトでは、`cluster`と`management`のロールを割り当てます。
 
-## Configuration options
+## 設定オプション
 
-Interfaces, bonds, and VLANs have a significant number of fields, which are largely self-descriptive and can be viewed in the [API definition](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_network.go).
+インターフェース、ボンド、VLANはかなり多くの設定オプションがあります。多くの設定は自己記述的で[API定義](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_network.go)で見ることができます。
 
-One special feature of note is the handling of hardware addresses (MACs). Both interfaces and bonds associate their configuration with the hardware address, which can be specified in two ways:
+注目すべき1つの機能はハードウェアーアドレス（MAC）の取り扱いです。インターフェースとボンドはハードウェアーアドレスに設定を関連付けますが、2つの方法で設定できます：
 
-* Raw MAC: Specify the hardware address directly, such as `10:66:6a:e5:6a:1c`.
+* 生のMAC: `10:66:6a:e5:6a:1c`のようにハードウェアーアドレスを直接指定する。
 
-* Interface name: If an interface name is provided, such as `enp5s0`, at startup IncusOS will attempt to get its MAC address and substitute that value in the configuration. This is useful when installing IncusOS across multiple physically identical servers with only a single [install seed](../seed.md).
+* インターフェース名: `enp5s0`のようにインターフェース名を指定すると、起動時にIncusOSはそのMACアドレスを取得し設定内の値を置き換えようとします。これは単一の[インストールシード](../seed.md)だけで複数の物理構成が同じサーバーにIncusOSをインストールする際に便利です。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `interfaces`: Zero or more interfaces that should be configured for the system.
+* `interfaces`: システムで設定すべき0個以上のインターフェース。
 
-* `bonds`: Zero or more bonds that should be configured for the system.
+* `bonds`: システムで設定すべき0個以上のボンド。
 
-* `vlans`: Zero or more VLANs that should be configured for the system.
+* `vlans`: システムで設定すべき0個以上のVLAN。
 
-* `dns`: Optionally, configure custom DNS information for the system.
+* `dns`: オプションで、システムのカスタムDNS情報を設定。
 
-* `proxy`: Optionally, configure a proxy for the system.
+* `proxy`: オプションで、システムのプロキシーを設定。
 
-* `time`: Optionally, configure custom NTP server(s) and timezone for the system.
+* `time`: オプションで、システムのカスタムのNTPサーバーとタイムゾーンを設定。
 
-### Firewall
+### ファイアウォール
 
-IncusOS supports a basic ingress firewall on its interfaces.
-This is done by setting the `firewall_rules` option to a list of rules (action, source address, protocol and port).
+IncusOSはインターフェースに基本的な内向きのファイアウォールをサポートします。
+これは`firewall_rules`にルール（アクション、送信元アドレス、プロトコル、ポート）のリストを設定することで行えます。
 
-On top of the user provided rules, IncusOS will always allow a subset of basic rules (`icmp`, `icmpv6` and established connections).
+ユーザー提供のルールに加えて、IncusOSは基本的なルール（`icmp`、`icmpv6`、確立されたコネクション）のサブセットを常に許可します。
 
-### Examples
+### 例
 
-#### Addressing
+#### アドレス設定
 
-Configure two network interfaces, one with IPv4 and the other with IPv6:
+2つのネットワークインターフェース、1つはIPv4もう1つはIPv6アドレスを設定します：
 
 ```
 {
@@ -81,7 +81,7 @@ Configure two network interfaces, one with IPv4 and the other with IPv6:
 }
 ```
 
-Configure a network interface with two static IP addresses. When specifying a static IP address, it must include a CIDR mask.
+ネットワークインターフェースに2つの静的なIPアドレスを設定します。静的IPアドレスを指定する際は、CIDRマスクを含める必要があります。
 
 ```
 {
@@ -115,9 +115,9 @@ Configure a network interface with two static IP addresses. When specifying a st
 }
 ```
 
-#### VLANs
+#### VLAN
 
-Configure a VLAN with ID 123 on top of an active-backup bond composed of two interfaces with MTU of 9000 and LLDP enabled:
+MTUを9000としLLDPを有効にした2つのインターフェースで構成されるアクティブ・バックアップのボンドの上にVLANをID 123で設定します：
 
 ```
 {
@@ -153,9 +153,9 @@ Configure a VLAN with ID 123 on top of an active-backup bond composed of two int
 }
 ```
 
-#### DNS, NTP, Timezone
+#### DNS、NTP、タイムゾーン
 
-Configure custom DNS, NTP, and timezone for IncusOS:
+カスタムのDNS、NTP、タイムゾーンをIncusOSに設定します：
 
 ```
 {
@@ -182,9 +182,9 @@ Configure custom DNS, NTP, and timezone for IncusOS:
 }
 ```
 
-#### Proxy
+#### プロキシー
 
-Configure a simple anonymous HTTP(S) proxy for IncusOS:
+IncusOSに簡単な匿名のHTTP(S)のプロキシーを設定します：
 
 ```
 {
@@ -201,7 +201,7 @@ Configure a simple anonymous HTTP(S) proxy for IncusOS:
 }
 ```
 
-Configure an authenticated HTTP(S) proxy with an exception for `*.example.com` and a total blocking of `*.bad-domain.hacker` for IncusOS:
+IncusOSに`*.example.com`を例外とし`*.bad-domain.hacker`は完全にブロックする認証されたHTTP(S)プロキシーを設定します：
 
 ```
 {
@@ -235,7 +235,7 @@ Configure an authenticated HTTP(S) proxy with an exception for `*.example.com` a
 }
 ```
 
-Configure an authenticated HTTP(S) proxy that relies on Kerberos authentication for IncusOS:
+IncusOSにKerberos認証を使う認証されたHTTP(S)プロキシーを設定します：
 
 ```
 {

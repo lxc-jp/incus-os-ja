@@ -1,18 +1,18 @@
-# Installing in a libvirt virtual machine
+# libvirtの仮想マシン内にインストール
 
-IncusOS can be easily installed in a libvirt virtual machine.
+IncusOSはlibvirtの仮想マシン内に簡単にインストールできます。
 
-## Get install media
+## インストールメディアの取得
 
-Follow the instructions to [get an IncusOS image](../download.md). This document will assume an ISO image is used.
+[IncusOSイメージの取得](../download.md)の手順に従ってください。このドキュメントではISOイメージを使うことを前提とします。
 
-## Create a new virtual machine
+## 仮想マシンを作成する
 
 ````{tabs}
 
-```{group-tab} Command line
+```{group-tab} コマンドライン
 
-Create a new virtual machine.
+仮想マシンを作成します。
 
     virt-install -n IncusOS \
         --os-variant=debian13 \
@@ -25,114 +25,114 @@ Create a new virtual machine.
 
 ```
 
-```{group-tab} Graphical interface
+```{group-tab} グラフィカルインターフェース
 
-Create a new virtual machine. Set the operating system to "Debian 13".
+仮想マシンを作成します。オペレーティングシステムを"Debian 13"に設定します。
 
-![libvirt VM configuring ISO](../../images/libvirt-ui-vm-configure-iso.png)
+![libvirt VMでISOを設定](../../images/libvirt-ui-vm-configure-iso.png)
 
-Before we can start the virtual machine, some additional configuration is required.
+仮想マシンを起動する前に、追加の設定が必要です。
 
-![libvirt VM configuring customize](../../images/libvirt-ui-vm-configure-customize.png)
+![libvirt VMでカスタマイズの設定](../../images/libvirt-ui-vm-configure-customize.png)
 
-Select the `OVMF_CODE_4M.secboot.fd` UEFI firmware.
+`OVMF_CODE_4M.secboot.fd` UEFIファームウェアーを選択します。
 
-![libvirt VM configuring Secure Boot](../../images/libvirt-ui-vm-configure-secure-boot.png)
+![libvirt VMでセキュアブートを設定](../../images/libvirt-ui-vm-configure-secure-boot.png)
 
-Change the main virtual disk bus to `SATA`.
+メインの仮想ディスクのバスを`SATA`に変更します。
 
-![libvirt VM configuring virtual disk](../../images/libvirt-ui-vm-configure-virtual-disk.png)
+![libvirt VMで仮想ディスクを設定](../../images/libvirt-ui-vm-configure-virtual-disk.png)
 
-Add a TPM device.
+TPMデバイスを追加します。
 
-![libvirt VM configuring TPM](../../images/libvirt-ui-vm-configure-tpm.png)
+![libvirt VMでTPMを設定](../../images/libvirt-ui-vm-configure-tpm.png)
 
 ```
 
 ````
 
-### Secure Boot and TPM configuration
+### セキュアブートとTPMの設定
 
-IncusOS depends on Secure Boot and a TPM. When configuring the virtual machine, make the following selections:
+IncusOSではセキュアブートとTPMが必要です。仮想マシンを設定する際は、以下のように設定してください：
 
-* Select the `OVMF_CODE_4M.secboot.fd` UEFI firmware option
+* `OVMF_CODE_4M.secboot.fd` UEFIファームウェアーオプションを選択します
 
-* Add a virtual TPM 2.0 device
+* 仮想のTPM 2.0デバイスを追加します
 
-### CPU, memory, network, and local storage
+### CPU、メモリー、ネットワーク、ローカルストレージ
 
-Configure the CPU and memory for the virtual machine as desired and add at least one network interface.
+仮想マシンのCPUとメモリをお好みに合わせて設定し、少なくとも1つのネットワークインターフェースを追加します。
 
-Remember that the main system drive must be at least 50GiB or larger.
+メインのシステムドライブは50GiB以上にすることを忘れないでください。
 
-## IncusOS installation
+## IncusOSのインストール
 
 ````{tabs}
 
-```{group-tab} Command line
+```{group-tab} コマンドライン
 
-`virt-install` will automatically start the virtual machine, which will load the necessary Secure Boot keys from the install media and reboot. libvirt ejects the CDROM after rebooting the virtual machine, but we need to re-attach it so the install can begin.
+`virt-install`を実行すると自動で仮想マシンを起動し、インストールメディアからセキュアブートの必要な鍵をロードして再起動します。libvirtは仮想マシンの再起動後にCDROMを取り出しますが、インストールができるように再びアタッチする必要があります。
 
-![libvirt VM no install media](../../images/libvirt-cli-vm-no-install-media.png)
+![libvirt VMでインストールメディアがない状態](../../images/libvirt-cli-vm-no-install-media.png)
 
-Re-attach the CDROM image and reset the virtual machine to begin the installation.
+CDROMイメージを再びアタッチし、インストールを開始するために仮想マシンを再起動します。
 
     virsh attach-disk IncusOS /home/gibmat/Downloads/IncusOS_202511070055.iso sdb --type=cdrom
     virsh reset IncusOS
 
-![libvirt VM installing IncusOS](../../images/libvirt-cli-vm-install.png)
+![libvirt VMでIncusOSをインストール中](../../images/libvirt-cli-vm-install.png)
 
-Upon completion of the install, remove the CDROM device and reset the virtual machine.
+インストールが完了したら、CDROMデバイスをを取り除いて仮想マシンを再起動します。
 
     virsh change-media IncusOS sdb --eject
     virsh reset IncusOS
 
-![libvirt VM installation complete](../../images/libvirt-cli-vm-install-complete.png)
+![libvirt VMでインストール完了](../../images/libvirt-cli-vm-install-complete.png)
 
 ```
 
-```{group-tab} Graphical interface
+```{group-tab} グラフィカルインターフェース
 
-Start the virtual machine, which will load the necessary Secure Boot keys from the install media and reboot. libvirt ejects the CDROM after rebooting the virtual machine, but we need to re-attach it so the install can begin.
+仮想マシンを起動すると、インストールメディアからセキュアブートの必要な鍵をロードして再起動します。libvirtは仮想マシンの再起動後にCDROMを取り出しますが、インストールができるように再びアタッチする必要があります。
 
-![libvirt VM no install media](../../images/libvirt-ui-vm-no-install-media.png)
+![libvirt VMでインストールメディアがない状態](../../images/libvirt-ui-vm-no-install-media.png)
 
-Re-attach the CDROM image, ensure the CDROM is listed among the boot devices and restart the virtual machine to begin the installation.
+CDROMイメージを再びアタッチし、ブートデバイスの一覧にCDROMがあることを確認し、仮想マシンを再起動してインストールを開始します。
 
-![libvirt VM reattaching CDROM](../../images/libvirt-ui-vm-reattach-cdrom.png)
+![libvirt VMでCDROMを再びアタッチ](../../images/libvirt-ui-vm-reattach-cdrom.png)
 
-![libvirt VM boot order](../../images/libvirt-ui-vm-boot-order.png)
+![libvirt VMのブートオーダー](../../images/libvirt-ui-vm-boot-order.png)
 
-![libvirt VM installing IncusOS](../../images/libvirt-ui-vm-install.png)
+![libvirt VMでIncusOSをインストール中](../../images/libvirt-ui-vm-install.png)
 
-Upon completion of the install, remove the CDROM device and then stop the virtual machine.
+インストールが完了したら、CDROMデバイスを取り外して仮想マシンを停止します。irtual machine.
 
-![libvirt VM installation complete](../../images/libvirt-ui-vm-install-complete.png)
+![libvirt VMにインストール完了](../../images/libvirt-ui-vm-install-complete.png)
 
 ```
 
 ````
 
-## IncusOS is ready for use
+## IncusOSを使い始めます
 
 ````{tabs}
 
-```{group-tab} Command line
+```{group-tab} コマンドライン
 
-Once the virtual machine starts, IncusOS will perform its first boot configuration.
+仮想マシンを起動すると、IncusOSが初回ブート時の設定を実行します。
 
-![libvirt VM running IncusOS](../../images/libvirt-cli-vm-incusos-running.png)
+![libvirt VMがIncusOSを実行](../../images/libvirt-cli-vm-incusos-running.png)
 
 ```
 
-```{group-tab} Graphical interface
+```{group-tab} グラフィカルインターフェース
 
-Start the virtual machine, and IncusOS will perform its first boot configuration.
+仮想マシンを起動すると、IncusOSが初回ブート時の設定を実行します。
 
-![libvirt VM running IncusOS](../../images/libvirt-ui-vm-incusos-running.png)
+![libvirt VMがIncusOSを実行](../../images/libvirt-ui-vm-incusos-running.png)
 
 ```
 
 ````
 
-Once complete, follow the instructions for [accessing the system](../access.md).
+完了したら、[システムにアクセス](../access.md)の手順に従ってください。

@@ -1,73 +1,73 @@
-# Shared API
+# 共通API
 
-Each IncusOS application shares a common API that can be used to restart it if needed as well as perform backup, restore, and reset operations.
+IncusOSの各アプリケーションは、必要に応じて再起動し、またバックアップ、リストアー、リセットの操作を行うために使える共通のAPIを持っています。
 
-## Getting the application state
+## アプリケーションの状態を取得
 
 ```
 incus admin os application show <name>
 ```
 
-## Restarting the application
+## アプリケーションを再起動
 
-If needed, an application can be restarted by running
+必要な場合に、以下のコマンドを実行してアプリケーションを再起動できます。
 
 ```
 incus admin os application restart <name>
 ```
 
 ```{note}
-It is expected to receive an EOF error since the application's HTTP REST endpoint will be restarted along with the application.
+アプリケーションとともにアプリケーションのHTTP RESTエンドポイとも再起動されるため、EOFを受け取るのは正常です。
 ```
 
-## Backing up the application
+## アプリケーションをバックアップ
 
 ```{important}
-An IncusOS application backup may contain sensitive data and credentials. As such, the backup should not be stored in any publicly-accessible location.
+IncusOSのアプリケーションのバックアップは機密データと認証情報を含む場合があります。そのため、バックアップは公開アクセス可能な場所に保管すべきではありません。
 ```
 
-A backup of the application can be created which will include its state and configuration. Optionally, a complete backup can be created which will include all locally cached artifacts or updates.
+作成されるアプリケーションのバックアップは状態と設定を含みます。オプションで、完全なバックアップも作成できます。これはすべてのローカルにキャッシュされたアーティファクトやアップデートを含みます。
 
-### Configuration options
+### 設定オプション
 
-* `complete`: If `true`, a full backup will be generated which may be quite large depending on what artifacts or updates are locally cached by the application.
+* `complete`: `true`の場合、フルバックアップが生成されます。これはアプリケーションがローカルにキャッシュしていたアーティファクトやアップデートによってはサイズが非常に大きくなるかもしれません。
 
-### Examples
+### 例
 
-Create the backup by running
+バックアップを作成するには以下のコマンドを実行します。
 
 ```
 incus admin os application backup <name> archive.tar.gz -d '{"complete":false}'
 ```
 
-## Restoring the application
+## アプリケーションをリストアー
 
 ```{warning}
-Restoring a backup will overwrite any existing application state. As such, use caution when restoring.
+バックアップをリストアーすると既存のアプリケーションのすべての状態を上書きします。そのため、リストアーする際は注意してください。
 ```
 
-Restore the backup by running
+バックアップをリストアーするには以下のコマンドを実行します。
 
 ```
 incus admin os application restore <name> backup.tar.gz
 ```
 
 ```{note}
-It is expected to receive an EOF error since the application's HTTP REST endpoint will be restarted along with the application after performing the restoration.
+リストアー実行後、アプリケーションとともにアプリケーションのHTTP RESTエンドポイントも再起動されるため、EOFを受け取るのは正常です。
 ```
 
-## Factory reset
+## ファクトリーリセット
 
 ```{warning}
-A factory reset will erase all configuration and state for the application.
+ファクトリーリセットはアプリケーションのすべての設定と状態を消去します。
 ```
 
-Reset the application by running
+アプリケーションをリセットするには以下のコマンドを実行します。
 
 ```
 incus admin os application factory-reset <name>
 ```
 
 ```{note}
-It is expected to receive an EOF error since the application's HTTP REST endpoint will be restarted along with the application after resetting the application.
+アプリケーションをリセット後、アプリケーションとともにアプリケーションのHTTP RESTエンドポイントも再起動されるため、EOFを受け取るのは正常です。
 ```

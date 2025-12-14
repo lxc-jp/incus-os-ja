@@ -1,28 +1,28 @@
-# Support
-## Releases
-IncusOS uses a rolling release model.
+# サポート
+## リリース
+IncusOSはローリングリリースモデルを使っています。
 
-A new stable release is tagged at least once a week to pick up the latest bug fixes to the Linux kernel, Incus and any other component that we ship.
+新しい安定版のリリースは、少なくとも週に1回、Linuxカーネル、Incus、その他私たちが提供しているコンポーネントの最新のバグ修正を取り込んでタグ付けされます。
 
-When reporting an issue, please first ensure that your system is running the latest stable release.
+問題を報告する際は、まずあなたのシステムが最新の安定版を稼働していることを確かめてください。
 
 ```{note}
-The use of other update channels like `testing` isn't supported and should be limited to development and debugging use on non-critical systems.
+`testing`のような他の更新チャンネルの使用はサポートされず、クリティカルでないシステムで開発やデバッグの用途に限定すべきです。
 ```
 
-## Support and community
+## サポートとコミュニティー
 
-The following channels are available for you to interact with the IncusOS community.
+あなたがIncusOSコミュニティーとやりとりするのに以下のチャンネルがあります。
 
-## Bug reports
+## バグレポート
 
-You can file bug reports and feature requests at: [`https://github.com/lxc/incus-os/issues/new`](https://github.com/lxc/incus-os/issues/new)
+バグレポートと機能リクエストを[`https://github.com/lxc/incus-os/issues/new`](https://github.com/lxc/incus-os/issues/new)に起票できます。
 
-## Community support
+## コミュニティーサポート
 
-Community support is handled at: [`https://discuss.linuxcontainers.org`](https://discuss.linuxcontainers.org)
+コミュニティーサポートは[`https://discuss.linuxcontainers.org`](https://discuss.linuxcontainers.org)で取り扱われます。
 
-## Commercial support
+## 商用サポート
 
-Commercial support is currently available from [Zabbly](https://zabbly.com) for standalone IncusOS deployments.
-For large scale deployments of IncusOS, support can be obtained from [FuturFusion](https://futurfusion.io) as part of FuturFusion Cloud.
+スタンドアロンのIncusOSデプロイ環境の商用サポートは現在は[Zabbly](https://zabbly.com)から利用可能です。
+IncusOSの大規模なスケールでのデプロイ環境に対しては、FuturFusion Cloudの一部として[FuturFusion](https://futurfusion.io)からサポートが得られます。
