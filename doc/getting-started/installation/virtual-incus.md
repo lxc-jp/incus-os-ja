@@ -48,7 +48,7 @@ IncusOSはIncusの仮想マシン内に簡単にインストールできます�
 
 ![Incus VMでISOを設定](../../images/incus-webui-vm-configure-iso.png)
 
-`Enable secureboot (VMs only)`をfalseに設定します。名前が少し紛らわしいですが、セキュアブートの鍵なしで仮想マシンがブートするように設定し、IncusOSのインストーラーが必要なセキュアブートの鍵を自動的に登録d着るようにします。
+`Enable secureboot (VMs only)`をfalseに設定します。名前が少し紛らわしいですが、セキュアブートの鍵なしで仮想マシンがブートするように設定し、IncusOSのインストーラーが必要なセキュアブートの鍵を自動的に登録できるようにします。
 
 ![Incus VMでセキュアブートを設定](../../images/incus-webui-vm-configure-secure-boot.png)
 
