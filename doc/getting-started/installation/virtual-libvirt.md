@@ -105,7 +105,7 @@ CDROMイメージを再びアタッチし、ブートデバイスの一覧にCDR
 
 ![libvirt VMでIncusOSをインストール中](../../images/libvirt-ui-vm-install.png)
 
-インストールが完了したら、CDROMデバイスを取り外して仮想マシンを停止します。irtual machine.
+インストールが完了したら、CDROMデバイスを取り外して仮想マシンを停止します。
 
 ![libvirt VMにインストール完了](../../images/libvirt-ui-vm-install-complete.png)
 
