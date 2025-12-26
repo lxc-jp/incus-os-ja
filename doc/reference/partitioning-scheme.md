@@ -1,6 +1,6 @@
-# Partitioning scheme
+# パーティショニング手法
 
-IncusOS utilizes `systemd-repart` to automatically partition the main system drive at first boot. The layout of the partition table looks like the following:
+IncusOSは`systemd-repart`を使って初回ブート時にメインシステムドライブに自動的にパーティションを作成します。パーティションテーブルのレイアウトは以下のようになります：
 
     EFI ESP (2GiB)
     seed data (100MiB)
@@ -14,26 +14,26 @@ IncusOS utilizes `systemd-repart` to automatically partition the main system dri
     LUKS encrypted ext4 system data (25 GiB)
     ZFS encrypted pool "local" (remaining space)
 
-## A/B updates
+## A／Bアップデート
 
-The EFI ESP partition holds two different signed UKI images, each corresponding to an A- or B-side root partition. When an OS update is applied, the non-booted UKI is replaced and its corresponding signing, hash, and data partitions are atomically updated. On reboot, `systemd-boot` will automatically select the updated UKI.
+EFI ESPパーティションは2つの異なる署名されたUKIイメージを持ち、それぞれがA-あるいはB-側のルートパーティションに対応します。OSの更新がインストールされる際、起動する際に使用していない側のUKIが更新され、対応する署名、ハッシュ、データパーティションがアトミックに更新されます。再起動時に`systemd-boot`が更新されたUKIを自動で選びます。
 
-## Seed data partition
+## シードデータパーティション
 
-The seed data partition is used during install or [factory reset](system/backup.md).
+シードデータパーティションはインストールや[ファクトリーリセット](system/backup.md)に使われます。
 
-## Encrypted partitions
+## 暗号化されたパーティション
 
-Partitions that hold user data are encrypted. The swap and ext4 system partitions are both encrypted and under normal operation are automatically unlocked during boot by the TPM. If unlocking fails for some reason, a recovery key can be provided to allow the system to boot.
+ユーザーデータを持つパーティションは暗号化されます。スワップとext4システムパーティションはともに暗号化され、通常の運用では起動時にTPMにより自動的にロック解除されます。何らかの理由でロック解除が失敗した場合、リカバリーキーを提供することでシステムを起動できます。
 
-Each ZFS pool created by IncusOS is encrypted with a randomly generated key. These keys are stored in the encrypted system partition.
+IncusOSで作成される各ZFSプールはランダムに生成された鍵で暗号化されます。これらの鍵は暗号化されたシステムパーティションに保管されます。
 
-The encryption keys can be retrieved via the [security API](system/security.md).
+暗号鍵は[セキュリティーAPI](system/security.md)で取得できます。
 
-### System partition
+### システムパーティション
 
-The system partition holds any system data that is not part of the immutable IncusOS images.
+システムパーティションはイミュータブルなIncusOSイメージに含まれないすべてのシステムデータを保持します。
 
-### "local" ZFS pool
+### "local" ZFSプール
 
-The "local" ZFS pool consumes all remaining space on the main system drive. It is available for use by applications; for example, when Incus is installed it will create a dataset `local/incus` to use as the default storage pool for containers and virtual machines.
+"local" ZFSプールはメインシステムドライブの残りのスペースすべてを使います。これはアプリケーションで使うことができ、例えば、Incusがインストールされる場合、コンテナーや仮想マシンのためのデフォルトストレージプールとして使う`local/incus`データセットを作成します。

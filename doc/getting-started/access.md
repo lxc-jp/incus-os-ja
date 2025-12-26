@@ -1,27 +1,25 @@
-# Accessing the system
+# システムへのアクセス
 
 ```{note}
-These instructions assume IncusOS deployed with the Incus application.
+この手順はIncusOSがIncusアプリケーションとデプロイされていることを前提としています。
 
-When using it with Operations Center or Migration Manager, use their respective command line client or web UI instead.
+オペレーションセンターやマイグレーションマネージャーを使用している場合は、それぞれのコマンドラインクライアントやウェブUIを代わりに使ってください。
 ```
 
-## Getting the IP address
-The first step in accessing an IncusOS system is by finding its IP address.
-This can be done by looking at the bottom of the screen on the running system.
+## IPアドレスの取得
+IncusOSシステムにアクセスするための最初のステップとしてそのIPアドレスを取得します。
+稼働中のシステムの画面の一番下を見るとIPアドレスがわかります。
 
-![IncusOS running screen](../images/incusos-started.png)
+![IncusOS稼働中の画面](../images/incusos-started.png)
 
-The documentation below uses `192.0.2.100` as the IP address of the IncusOS system.
+以下のドキュメントではIncusOSシステムのIPアドレスとして`192.0.2.100`を使用します。
 
-## Connecting to IncusOS
+## IncusOSへの接続
 
 `````{tabs}
 
-````{group-tab} Command line
-After the install completes, you will be shown a list of IP addresses in the
-network configuration footer. Pick one and add IncusOS as a remote Incus
-server:
+````{group-tab} コマンドライン
+インストールが完了したら、network configurationのフッターにIPアドレス一覧が表示されます。1つ選んでIncusOSをリモートのIncusサーバーとして追加してください：
 
     $ incus remote add IncusOS 192.0.2.100
     Certificate fingerprint: 80d569e9244a421f3a3d60d46631eb717f8a0a480f2f23ee729a4c1c016875f7
@@ -38,7 +36,7 @@ server:
     | local (current) | unix://                            | incus         | file access | NO     | YES    | NO     |
     +-----------------+------------------------------------+---------------+-------------+--------+--------+--------+
 
-Once the remote is added, you can interact with it like any other Incus server:
+リモートが追加されたら、ほかのIncusサーバーと同じように対話操作できます：
 
     $ incus launch images:debian/trixie IncusOS:trixie
     Launching trixie
@@ -59,38 +57,33 @@ Once the remote is added, you can interact with it like any other Incus server:
     +--------+---------+----------------------+------------------------------------------------+-----------+-----------+
 ````
 
-````{group-tab} Web interface
-The Incus UI is also available for web access.
+````{group-tab} ウェブインターフェース
+ウェブでアクセスできるIncus UIも使えます。
 
-For this to work, the client certificate provided at image creation time
-must be imported as a user certificate in your web browser.
+これを使うには、イメージ作成時に指定したクライアント証明書をウェブブラウザーにユーザー証明書としてインポートする必要があります。
 
 ```{tip}
-The exact process of adding a user certificate varies between browsers
-and operating systems, but generally involves importing a PKCS#12 certificate
-into the web browser's certificate store.
+ユーザー証明書を追加する正確な手順はブラウザーやオペレーティングシステムによって異なりますが、一般的にはPKCS#12証明書をウェブブラウザーの証明書ストアーにインポートする手順が含まれます。
 
-A PKCS#12 certificate can be generated from the Incus client key/certificate
-pair by running
+PKCS#12証明書は以下のコマンドによりIncusクライアントの鍵／証明書ペアーを生成できます。
 
     openssl pkcs12 -export -inkey ~/.config/incus/client.key -in ~/.config/incus/client.crt -out ~/.config/incus/client.pfx
 ```
 
-Once the user certificate is imported, you can access the UI at `https://192.0.2.100:8443`
+ユーザー証明書がインポートされたら、`https://192.0.2.100:8443`でUIにアクセスできます。
 
-![Incus UI with running instances](../images/incus-webui-instances.png)
+![稼働中のインスタンスがあるIncus UI](../images/incus-webui-instances.png)
 ````
 
 `````
 
-## Fetching the encryption recovery key
+## 暗号リカバリーキーの取得
 
-IncusOS will warn you if you haven't retrieved the encryption recovery key.
-You can do so with the following command. Make sure to store the key someplace
-safe!
+IncusOSは暗号リカバリーキーをまだ取得していない場合警告を表示します。
+以下のコマンドで暗号リカバリーキーを取得できます。キーはどこか安全な場所に保管するようにしてください！
 
 ```{note}
-This step is currently only possible through the command line client.
+この手順は現時点ではコマンドラインクライアントでのみ実行できます。
 ```
 
 ```

@@ -1,22 +1,22 @@
-# Shared API
+# 共通API
 
-Each IncusOS service shares a common API that can be used to get its state and configuration, update its configuration, and forcefully reset the service if needed.
+IncusOSの各サービスは、状態と設定の取得、設定の更新、必要に応じてサービスを強制的にリセットするために使える共通のAPIを持っています。
 
-## Getting the service state and configuration
+## サービスの状態と設定を取得
 
 ```
 incus admin os service show <name>
 ```
 
-## Editing the service configuration
+## サービスの設定を編集
 
 ```
 incus admin os service edit <name>
 ```
 
-## Resetting the application
+## アプリケーションをリセット
 
-If needed, a service can be forcefully reset by running
+必要なら、サービスを以下のコマンドで強制的にリセットできます。
 
 ```
 incus admin os service reset <name>

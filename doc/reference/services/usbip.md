@@ -1,11 +1,11 @@
 # {abbr}`USBIP (USB over IP)`
 
-The [{abbr}`USBIP (USB over IP)`](https://usbip.sourceforge.net/) service provides access to remote USB devices over IP.
+[{abbr}`USBIP (USB over IP)`](https://usbip.sourceforge.net/)サービスはIP越しにリモートのUSBデバイスへのアクセスを提供します。
 
-## Configuration options
+## 設定オプション
 
-The full API structs for the service can be viewed [online](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_usbip.go).
+このサービスの完全なAPIの構造体は[オンライン](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_usbip.go)でご覧いただけます。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `targets`: An array of USBIP targets, each of which consists of an address and bus ID.
+* `targets`: USBIPターゲットの配列。各要素はアドレスとバスIDから構成されます。

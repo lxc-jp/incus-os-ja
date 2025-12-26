@@ -74,6 +74,7 @@ html_last_updated_fmt = ""
 html_favicon = ".sphinx/_static/favicon.ico"
 html_static_path = [".sphinx/_static"]
 html_css_files = ["custom.css", "furo_colors.css"]
+html_extra_path = ['.sphinx/_extra']
 
 html_theme_options = {
     "sidebar_hide_name": True,

@@ -1,28 +1,28 @@
-# Expanding the "local" storage pool
+# "local"ストレージプールを拡張する
 
-On first boot, IncusOS will automatically create a storage pool called "local" on the main system drive. This pool will consume all available free space remaining on the drive. (Further details about the partitioning of the main system drive are available [here](../reference/partitioning-scheme.md).)
+初回ブート時に、IncusOSはメインのシステムドライブに"local"という名前のストレージプールを自動で作成します。このプールはドライブの残りの空きスペースをすべて使います。（メインシステムドライブのパーティショニングの詳細については[こちら](../reference/partitioning-scheme.md)をご参照ください。）
 
-A common scenario is installing IncusOS on a server with two drives, each being the same size. IncusOS will install on one, which leaves an unused drive. Rather than creating a separate storage pool on the unused drive, we can extend the automatically created "local" storage pool using the second drive. It is possible to configure the second drive as RAID0 (striping) or RAID1 (mirror).
+同じサイズの2つのドライブを持つサーバーにIncusOSをインストールするのはよくあります。IncusOSは片方のドライブにインストールし、もう片方は使わないままになります。未使用のドライブに別のストレージプールを作成するよりも、2つめのドライブを使うように"local"ストレージドライブを自動的に拡張できます。2つめのドライブをRAID0（ストライピング）またはRAID1（ミラー）として設定できます。
 
-## Limitations
+## 制限
 
-Some limitations apply to the "local" pool:
+"local"プールにはいくつかの制限があります：
 
-* The main system drive partition cannot be removed from the "local" pool
-* The "local" pool cannot be deleted
-* Only RAID0 and RAID1 are supported for the "local" pool
-* The "local" pool can consist of exactly one or two drives
+* メインシステムドライブのパーティションは"local"プールから削除できません
+* "local"プールは削除できません
+* "local"プールではRAID0とRAID1のみがサポートされます
+* "local"プールは1つか2つのドライブで構成できます
 
-### Additional RAID1 limitations
+### RAID1の追加の制限
 
-* The second drive must be the same size as the main system drive
-* The pool capacity will be ~35GiB less than the size of the drives due to partitioning layout on the main system drive
+* 2つめのドライブはメインシステムドライブと同じサイズである必要があります
+* メインシステムドライブ上のパーティショニングレイアウトの都合により、プールの容量はドライブのサイズより約35GiB小さくなります
 
-## Initial system state
+## 初期のシステム状態
 
-For this tutorial, let's assume there are three drives, each 50GiB in size. IncusOS is installed, but otherwise no changes have been made to the system.
+このチュートリアルでは、サイズが50GiBのドライブが3つある前提とします。IncusOSをインストールしたけれど、システムにほかの変更は行っていないものとします。
 
-We can get the system's current storage state:
+システムの現在の設定を取得します：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage show
@@ -73,9 +73,9 @@ state:
 
 ## RAID0
 
-RAID0 maximizes available space for the "local" pool at the expense of no data redundancy when a drive fails.
+RAID0は"local"プールのサイズを最大にできますが、ドライブに障害が発生した場合にデータの冗長性はないという犠牲を払っています。
 
-Let's add `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1` to the "local" pool by running `incus admin os system storage edit`. The configuration should look like:
+`incus admin os system storage edit`を実行して"local"プールに`/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1`を追加しましょう。設定は以下のようになります：
 
 ```
 config:
@@ -87,7 +87,7 @@ config:
     - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1
 ```
 
-After saving and exiting, IncusOS will apply the changes. We can see the updated storage configuration reflecting the expansion of the "local" storage pool:
+保存して終了したら、IncusOSは変更を反映します。"local"ストレージプールの拡張を反映して更新されたストレージ設定は以下のようになります：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage show
@@ -140,9 +140,9 @@ state:
 
 ## RAID1
 
-RAID1 mirrors data written to the "local" pool which allows for recovery of data if one drive fails.
+RAID1は"local"プールに書かれたデータをミラーし、1つのドライブで障害が発生してもデータを復元できます。
 
-Let's add `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1` to the "local" pool by running `incus admin os system storage edit`. The configuration should look like:
+`incus admin os system storage edit`を実行して"local"プールに`/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1`を追加しましょう。設定は以下のようになります：
 
 ```
 config:
@@ -155,10 +155,10 @@ config:
 ```
 
 ```{note}
-Note that in addition to adding the second drive, the type is also changed to `zfs-raid1`.
+2つめのドライブを追加するのに加えて、タイプも`zfs-raid1`に変更していることに注意してください。
 ```
 
-After saving and exiting, IncusOS will apply the changes. We can see the updated storage configuration reflecting the expansion of the "local" storage pool:
+保存して終了したら、IncusOSは変更を反映します。"local"ストレージプールの拡張を反映して更新されたストレージ設定は以下のようになります：
 
 ```
 
@@ -210,11 +210,11 @@ state:
     usable_pool_size_in_bytes: 1.7716740096e+10
 ```
 
-### Recovering a failed non-system drive
+### 非システムドライブの障害を復旧
 
-Let's pretend the second drive we added to the "local" storage pool is dying. We happen to have a third drive available in the server which we can use to replace the failing one.
+"local"ストレージプールに追加した2つめのドライブに障害が起きたと仮定しましょう。たまたまサーバーには3つめのドライブがありますので、障害が起きたドライブを置き換えるのに使えます。
 
-Once again, run `incus admin os system storage edit` and replace `disk1` with `disk2`:
+再び`incus admin os system storage edit`を実行して`disk1`と`disk2`を置き換えます：
 
 ```
 config:
@@ -226,7 +226,7 @@ config:
     - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_root-part11
 ```
 
-After saving and exiting, IncusOS will apply the changes. Depending on how much data is stored in the "local" pool, it might take some time for ZFS to finish the resilver. Eventually the process will complete, and the system's storage state will look like the following:
+保存して終了したら、IncusOSは変更を反映します。"local"プールにどれだけのデータが保管されていたかによって、ZFSがresilverを完了するまでに時間がかかるかもしれません。最終的にresilverが完了したら、システムのストレージの状態は以下のようになるでしょう：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage show
@@ -277,9 +277,9 @@ state:
     usable_pool_size_in_bytes: 1.7716740096e+10
 ```
 
-### Recovering a failed system drive
+### 障害の起きたシステムドライブを復旧
 
-If the main system drive fails, it is possible to recover the data from the "local" storage pool. After reinstalling IncusOS on a new drive, if the second drive is physically present on first boot IncusOS will attempt to recover the "local" storage pool:
+メインシステムドライブで障害が起きた場合、"local"ストレージプールからデータを復旧できます。新しいドライブにIncusOSを再インストールした後、初回ブート時に2つめのドライブが物理的に存在する場合はIncusOSは"local"ストレージプールを復旧しようと試みます：
 
 ```
 2025-11-18 18:05:22 INFO Bringing up the local storage
@@ -287,12 +287,12 @@ If the main system drive fails, it is possible to recover the data from the "loc
 2025-11-18 18:05:23 INFO System is ready release=202511181747
 ```
 
-This will restore the pool to a good state, but because this is a fresh IncusOS install you must supply the encryption key for the previously-created "local" storage pool:
+これはプールを正常な状態にリストアーしますが、これはフレッシュなIncusOSのインストールですので前回作成した"local"ストレージプールの暗号鍵を渡す必要があります：
 
 ```
 incus admin os system storage import-storage-pool -d '{"name":"local","type":"zfs","encryption_key":"QWJKYnRLGfyhj+OevRfgkdE6MW6PgAqR57tTi+8T+qA="}'
 ```
 
-After this step, the data in the "local" pool will now be available and automatically unencrypted on each boot.
+この手順のあと、"local"プールのデータは利用可能になり、毎回のブート時に自動的に復号化されます。
 
-Depending on what application(s) are installed, additional steps may be required to fully restore the newly reinstalled system. For example, if Incus is installed, you might need to run`incus admin recover` to re-discover the instances stored in the "local" pool.
+どのアプリケーションがインストールされているかによって、新しく再インストールしたシステムを完全にリストアーするために追加の手順が必要になるかもしれません。例えば、もしIncusがインストールされていたら、`incus admin recover`を実行して"local"プール内に保管されていたインスタンスを再び発掘する必要があるかもしれません。

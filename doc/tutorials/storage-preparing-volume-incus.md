@@ -1,20 +1,20 @@
-# Preparing a storage volume for Incus
+# Incus用にストレージボリュームを用意
 
-IncusOS creates encrypted storage pools with randomly-generated encryption keys. These keys are stored on the main system drive that is in turn protected by TPM-backed encryption. This provides strong protection for all data stored in each storage pool.
+IncusOSはランダムに生成した暗号鍵を使って暗号化したストレージプールを作成します。これらの鍵はメインシステムドライブに保管され、TPMによる暗号化で保護されます。これにより各ストレージプールに保管されたすべてのデータに強い保護を提供します。
 
-Each storage pool can contain one or more volumes, which can be used to enforce storage quotas or be specially-configured for a specific application.
+各ストレージプールは1つ以上のボリュームを持てます。ストレージボリュームはストレージのクォータを強制するのに使ったり、特定のアプリケーション用に特別に設定できます。
 
-It's very easy to create a storage volume and make it available to an application, such as Incus.
+捨てレージボリュームを作成し、Incusのようなアプリケーションで使えるようにするのはとても簡単です。
 
 ```{warning}
-Incus can [directly create a storage pool](https://linuxcontainers.org/incus/docs/main/howto/storage_pools/). However, this pool will be **unencrypted** and not managed by IncusOS. Because of this, it is strongly recommended to create a storage volume using the IncusOS API, then expose it to Incus as described below.
+Incusは[直接ストレージプールを作成](https://linuxcontainers.org/incus/docs/main/howto/storage_pools/)できます。しかし、このプールは**暗号化されず**IncusOSで管理されません。このため、IncusOS APIを使ってストレージプールを作成し、それを下記の手順でIncusに公開することを強く推奨します。
 ```
 
-## Creating the storage pool
+## ストレージプールを作成
 
-The [storage pool API](../reference/system/storage.md) provides options for creating complex pools. This tutorial will use a single drive for simplicity.
+[ストレージプールAPI](../reference/system/storage.md)は複雑なプールを作成するオプションを提供します。このチュートリアルは簡単のため単一のドライブを使います。
 
-Assuming we want to create a pool `my-pool` using the device `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1`, run `incus admin os system storage edit` and add the following pool configuration:
+`/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1`デバイスを使い`my-pool`というプールを作りたいとすると、`incus admin os system storage edit`を実行して以下のプール設定を追加します：
 
 ```
 config:
@@ -25,7 +25,7 @@ config:
       - /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk1
 ```
 
-Afterwards we see the new pool is created, but unused:
+その後、新しいプールが作られますが、未使用の状態です：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage show
@@ -47,9 +47,9 @@ state:
     volumes: []
 ```
 
-## Creating a volume
+## ボリュームを作成
 
-We will now create a new storage volume `my-volume` for use by Incus:
+Incusで使うための`my-volume`という新しいストレージボリュームを作成します：
 
 ```
 gibmat@futurfusion:~$ incus admin os system storage create-volume -d '{"pool":"my-pool","name":"my-volume","use":"incus"}'
@@ -76,9 +76,9 @@ state:
       use: incus
 ```
 
-## Making the volume available to Incus
+## ボリュームをIncusで使えるようにする
 
-Finally, we can easily add the storage volume for Incus to use:
+最後に、ストレージボリュームをIncusが使えるように追加するのは簡単です：
 
 ```
 gibmat@futurfusion:~$ incus storage create incusos-volume zfs source=my-pool/my-volume

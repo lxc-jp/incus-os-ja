@@ -1,17 +1,17 @@
-# Providers
+# プロバイダー
 
-IncusOS receives [updates](update.md) from the currently configured provider. Two providers are supported:
+IncusOSは設定されたプロバイダーから[更新](update.md)を受け取ります。2つのプロバイダーがサポートされます：
 
-* `images`: The default IncusOS provider, which fetches updates from the [Linux Containers {abbr}`CDN (Content Delivery Network)`](https://images.linuxcontainers.org/os/).
+* `images`: デフォルトのIncusOSプロバイダー。[Linuxコンテナーの{abbr}`CDN (Content Delivery Network)`](https://images.linuxcontainers.org/os/)から更新を取得します。
 
-* `operations-center`: When IncusOS is deployed in a managed environment controlled by [Operations Center](../applications/operations-center.md), it is registered with the `operations-center` provider. This allows an administrator to centrally control all IncusOS systems, even in restricted or air-gaped environments that may not have Internet access.
+* `operations-center`: [オペレーションセンター](../applications/operations-center.md)で制御されるマネージド環境にIncusOSがデプロイされた場合、`operations-center`プロバイダーを使うように設定されます。これにより、制限された環境やインターネットアクセスを持たない物理的に隔離された環境でも、管理者がすべてのIncusOSシステムを集中管理できるようにします。
 
-## Configuration options
+## 設定オプション
 
-Configuration fields are defined in the [`SystemProviderConfig` struct](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_provider.go).
+設定フィールドは[`SystemProviderConfig`構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_provider.go)で定義されています。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `name`: The name of the provider. One of `images`, `operations-center`, or `local`. `local` is intended for use by developers working on IncusOS.
+* `name`: プロバイダーの名前。`images`、`operations-center`、`local`のいずれか。`local`はIncusOSの開発者が使う想定です。
 
-* `config`: A map of provider-specific configuration key-value pairs.
+* `config`: プロバイダー固有のキーバリューペア設定のマップ。

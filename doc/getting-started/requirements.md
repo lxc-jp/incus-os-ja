@@ -1,14 +1,13 @@
-# System requirements
-IncusOS is designed to provide an extremely secure environment in which to
-run Incus. It requires a lot of modern system features and will not function
-properly on older unsupported systems.
+# システム要件
+IncusOSはIncusを動作するための非常に安全な環境を提供するために設計されています。
+多数のモダンなシステムの機能を要求するため古いサポート外のシステム上では正常に動作しません。
 
-Minimum system requirements:
+最低のシステム要件：
 
-- Modern Intel/AMD (`x86_64`) or ARM (`aarch64`) system
-   - For `x86_64`, the CPU must support `x86_64_v3`
-- Support for UEFI with Secure Boot
-- {abbr}`TPM (Trusted Platform Module)` 2.0 security module
-- At least 4GiB of RAM (for system use only)
-- At least 50GiB of storage
-- At least one wired network port
+- モダンなIntel／AMD（`x86_64`）あるいはARM（`aarch64`）システム
+   - `x86_64`ではCPUは`x86_64_v3`のサポートが必要
+- セキュアブートとUEFIのサポート
+- {abbr}`TPM (Trusted Platform Module)` 2.0セキュリティーモジュール
+- 最低4GiBのRAM（システムで使用する分だけで）
+- 最低50GiBのストレージ
+- 最低1つの有線ネットワークポート

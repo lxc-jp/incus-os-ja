@@ -1,86 +1,60 @@
-# Storage
+# ストレージ
 
-IncusOS allows for the configuration of complex ZFS storage pools. Each pool is automatically encrypted with a randomly generated key to protect data stored in the pool. The encryption keys can be retrieved from the system's security state.
+IncusOSでは複雑なZFSストレージプールを設定できます。各プールはプール内のデータを保護するためにランダムに生成された鍵で自動的に暗号化されます。暗号鍵はシステムのセキュリティーステートから取得できます。
 
-When creating a storage pool, IncusOS can use local devices, or remote devices made available via a [service](../services.md), such as iSCSI.
+ストレージプールを作成する際、IncusOSはローカルのデバイスあるいはiSCSIのような[サービス](../services.md)経由で利用可能なリモートのデバイスを使えます。
 
-It is also possible to add, remove, and replace devices from an existing storage pool. This is accomplished by getting the current pool configuration, making the necessary changes in the relevant struct, then submitting the results back to IncusOS.
-
-```{note}
-Unencrypted ZFS storage pools are not supported. IncusOS will only create encrypted pools, and will refuse to import any existing unencrypted pool.
-
-This prevents the accidental leakage of sensitive data from an encrypted pool to an unencrypted one.
-```
-
-## Configuration options
-
-Configuration fields are defined in the [`SystemStorageConfig` struct](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_storage.go).
-
-The following configuration options can be set:
-
-* `pools`: An array of zero or more user-defined storage pool definitions.
+既存のストレージプールにデバイスを追加、削除、置き換えることもできます。これは現在のプール設定を取得し、対応する構造体に変更を加えて、IncusOSに変更結果を提示することで実現できます。
 
 ```{note}
-When specifying devices for a pool, order is important. IncusOS will always return a sorted list which it will use when comparing the list of devices it receives via the API to determine what device(s) to add, remove, or replace in the pool. Put another way, `"devices": ["/dev/sda", "/dev/sdb"]` != `"devices": ["/dev/sdb", "/dev/sda"]`.
+暗号化されていないZFSストレージプールはサポートされません。IncusOSは暗号化されたプールのみ作成し、既存の暗号化されていないプールのインポートも拒否します。
+
+これにより暗号化されたプールから暗号化されていないプールへ機密情報を誤って流出することを防ぎます。
 ```
 
-### Examples
+## 設定オプション
 
-Create a storage pool `mypool` as ZFS raidz1 with four devices, one cache device, and one log device:
+設定フィールドは[`SystemStorageConfig`構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_storage.go)で定義されています。
+
+以下の設定オプションが設定できます：
+
+* `pools`: 1つ以上のユーザー定義のストレージプール定義の配列。
+
+```{note}
+プールにデバイスを指定する際、順序が重要です。IncusOSはAPIで受け取ったデバイスのリストを比較する際、どのデバイスをプールに追加、削除、置換するかを決定するために使用するソート済みリストを常に返します。別の言い方をすると`"devices": ["/dev/sda", "/dev/sdb"]` != `"devices": ["/dev/sdb", "/dev/sda"]`です。
+```
+
+### 例
+
+4つのデバイス、1つのキャッシュデバイス、1つのログデバイスでZFS raidz1として`mypool`というストレージプールを作成します：
 
 ```
 {
-  "config": {
     "pools": [
-      {
-        "name": "mypool",
-        "type": "zfs-raidz1",
-        "devices": [
-          "/dev/sdb",
-          "/dev/sdc",
-          "/dev/sdd",
-          "/dev/sde"
-        ],
-        "cache": [
-          "/dev/sdf"
-        ],
-        "log": [
-          "/dev/sdg"
-        ]
-      }
+        {"name":"mypool",
+         "type":"zfs-raidz1",
+         "devices":["/dev/sdb","/dev/sdc","/dev/sdd","/dev/sde"],
+         "cache":["/dev/sdf"],
+         "log":["/dev/sdg"]}
     ]
-  }
 }
 ```
 
-Replace failed device `/dev/sdb` with `/dev/sdh`:
+故障したデバイス`/dev/sdb`を`/dev/sdh`で置き換えます：
 
 ```
 {
-  "config": {
     "pools": [
-      {
-        "name": "mypool",
-        "type": "zfs-raidz1",
-        "devices": [
-          "/dev/sdh",
-          "/dev/sdc",
-          "/dev/sdd",
-          "/dev/sde"
-        ],
-        "cache": [
-          "/dev/sdf"
-        ],
-        "log": [
-          "/dev/sdg"
-        ]
-      }
+        {"name":"mypool",
+         "type":"zfs-raidz1",
+         "devices":["/dev/sdh","/dev/sdc","/dev/sdd","/dev/sde"],
+         "cache":["/dev/sdf"],
+         "log":["/dev/sdg"]}
     ]
-  }
 }
 ```
 
-Get the pool encryption keys for safe storage (base64 encoded):
+安全なストレージのプール暗号鍵を取得します（base64エンコード形式）：
 
 ```
 $ incus admin os system security show
@@ -91,51 +65,51 @@ state:
     mypool: zh9gkAgGsKenO48y7dwNg6aBFaD6OoedgSlSsivEq0Q=
 ```
 
-## Deleting a storage pool
+## ストレージプールの削除
 
 ```{warning}
-Deleting a storage pool will result in the unrecoverable loss of all data in that pool.
+ストレージプールを削除するとプール内のすべてのデータの回復不能な消失をもたらします。
 ```
 
-Delete the storage pool `mypool` by running
+`mypool`ストレージプールを削除するには以下のコマンドを実行します。
 
 ```
 incus admin os system storage delete-pool -d '{"name":"mypool"}'
 ```
 
-## Wiping a drive
+## ドライブの消去
 
 ```{warning}
-Wiping a drive will result in the unrecoverable loss of all data on that drive.
+ドライブを消去するとドライブ上のすべてのデータの回復不能な消失をもたらします。
 ```
 
-Wipe drive `scsi-0QEMU_QEMU_HARDDISK_incus_disk`, which must be specified by its ID, by running
+`scsi-0QEMU_QEMU_HARDDISK_incus_disk`ドライブを消去する際は、IDで指定する必要がありますが、以下のコマンドを実行します。
 
 ```
 ./incus admin os system storage wipe-drive -d '{"id":"/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_disk"}'
 ```
 
-## Importing an existing encrypted pool
+## 既存の暗号化されたプールのインポート
 
-If importing an existing storage pool, IncusOS needs to be informed of its encryption key before the data can be made available. Because there is no way to prompt for an encryption passphrase, only ZFS pools using a raw encryption key can be imported. Specify the raw base64 encoded encryption key when importing storage pool `mypool` by running
+既存のストレージプールをインポートする場合、データが利用可能になる前に暗号鍵をIncusOSに伝える必要があります。暗号パスフレーズを入力するプロンプトを表示する方法がないため、生の暗号鍵を使うZFSプールのみがインポートできます。BASE64エンコードされた暗号鍵を使って`mypool`ストレージプールをインポートするには以下のコマンドを実行します。
 
 ```
 incus admin os system storage import-storage-pool -d '{"name":"mypool","type":"zfs","encryption_key":"THp6YZ33zwAEXiCWU71/l7tY8uWouKB5TSr/uKXCj2A="}'
 ```
 
-## Managing volumes
+## ボリュームの管理
 
-It's possible to create and delete volumes within a storage pool.
+ストレージプール内にボリュームを作成と削除できます。
 
-Each volume has its own:
+各ボリュームはそれぞれ固有の情報を持ちます：
 
-* Name
-* Quota (in bytes, a zero value means unrestricted)
-* Use (`incus` or `linstor`)
+* 名前
+* クォータ（バイトで指定、0は無制限）
+* 用途（`incus`または`linstor`）
 
-The list of volumes are visible directly in the storage state data.
+ボリュームのリストはストレージの状態データ内で直接見ることができます。
 
-Creating and deleting volumes can be done through the command line with:
+ボリュームの作成と削除はコマンドラインで以下のように実行できます：
 
 ```
 incus admin os system storage create-volume -d '{"pool":"local","name":"my-volume","use":"linstor"}'
@@ -143,5 +117,5 @@ incus admin os system storage delete-volume -d '{"pool":"local","name":"my-volum
 ```
 
 ```{note}
-IncusOS automatically creates a new `incus` volume when setting up the `local` storage pool.
+IncusOSは`local`ストレージプールをセットアップする際に`incus`ボリュームを自動で作成します。
 ```

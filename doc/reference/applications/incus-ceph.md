@@ -1,3 +1,3 @@
 # Incus Ceph
 
-The Incus Ceph (`incus-ceph`) application installs the Ceph client for Incus deployments needing to use [Ceph storage](../services/ceph.md).
+Incus Ceph （`incus-ceph`）アプリケーションは[Cephストレージ](../services/ceph.md)を使う必要があるIncus環境にCephクライアントをインストールします。

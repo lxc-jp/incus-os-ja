@@ -1,11 +1,11 @@
-# Resources
+# リソース
 
-A detailed low-level dump of information about the IncusOS system hardware can be obtained by running
+IncusOSシステムハードウェアーに関する詳細な低レベルのダンプを取得するには以下のコマンドを実行します。
 
 ```
 incus admin os system resources show
 ```
 
-## Configuration options
+## 設定オプション
 
-There are no configuration options for this read-only system information.
+この読み取り専用のシステム情報に関する設定オプションはありません。

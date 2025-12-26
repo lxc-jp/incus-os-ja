@@ -1,16 +1,13 @@
-# Getting started
-Let's get you started with IncusOS!
+# 使い始めるには
+IncusOSを使ってみましょう！
 
-Whether you want to run it on some physical hardware or in a virtual
-machine, you'll have to make sure your system meets the current system
-requirements, then get yourself an image and finally install it on your
-system.
+なんらかの物理ハードウェアー上で動かしたいか、あるいは仮想マシン内で動かしたいかによって、システムが現在のシステム要件を満たすかを確認する必要があります。次にあなた自身がイメージを取得し、最後にあなたのシステム上にインストールします。
 
 ```{toctree}
 :maxdepth: 1
 
-System requirements </getting-started/requirements>
-Getting an image </getting-started/download>
-Installing </getting-started/installation>
-Accessing the system </getting-started/access>
+システム要件 </getting-started/requirements>
+イメージの取得 </getting-started/download>
+インストール </getting-started/installation>
+システムへのアクセス </getting-started/access>
 ```

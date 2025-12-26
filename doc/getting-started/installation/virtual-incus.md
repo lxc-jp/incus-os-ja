@@ -1,36 +1,36 @@
-# Installing in an Incus virtual machine
+# Incusの仮想マシン内にインストール
 
-IncusOS can be easily installed in an Incus virtual machine.
+IncusOSはIncusの仮想マシン内に簡単にインストールできます。
 
-## Get and import install media
+## インストールメディアの取得とインポート
 
-Follow the instructions to [get an IncusOS image](../download.md). This document will assume an ISO image is used.
+[IncusOSイメージの取得](../download.md)の手順に従ってください。このドキュメントではISOイメージを使うことを前提とします。
 
-Once downloaded, import the ISO image to Incus' storage.
+ダウンロードが完了したら、ISOイメージをIncusのストレージにインポートします。
 
 ````{tabs}
 
-```{group-tab} Command line
+```{group-tab} コマンドライン
 
     incus storage volume import default Downloads/IncusOS_202511050158.iso IncusOS_202511050158.iso --type=iso
 
 ```
 
-```{group-tab} Web interface
+```{group-tab} ウェブインターフェース
 
-![Incus ISO image import](../../images/incus-webui-import-iso.png)
+![Incus ISOイメージのインポート](../../images/incus-webui-import-iso.png)
 
 ```
 
 ````
 
-## Create a new virtual machine
+## 仮想マシンを作成する
 
 ````{tabs}
 
-```{group-tab} Command line
+```{group-tab} コマンドライン
 
-Create a new virtual machine and attach the ISO image.
+仮想マシンを作成してISOイメージを取り付けます。
 
     incus init --empty --vm IncusOS \
         -c security.secureboot=false \
@@ -42,99 +42,99 @@ Create a new virtual machine and attach the ISO image.
 
 ```
 
-```{group-tab} Web interface
+```{group-tab} ウェブインターフェース
 
-Create a new virtual machine and attach the ISO image.
+仮想マシンを作成してISOイメージを取り付けます。
 
-![Incus VM configuring ISO](../../images/incus-webui-vm-configure-iso.png)
+![Incus VMでISOを設定](../../images/incus-webui-vm-configure-iso.png)
 
-Set `Enable secureboot (VMs only)` to false. This is unfortunately named a bit confusingly, but will configure the virtual machine to boot without any configured Secure Boot keys so that the IncusOS installer can automatically enroll the necessary Secure Boot keys.
+`Enable secureboot (VMs only)`をfalseに設定します。名前が少し紛らわしいですが、セキュアブートの鍵なしで仮想マシンがブートするように設定し、IncusOSのインストーラーが必要なセキュアブートの鍵を自動的に登録できるようにします。
 
-![Incus VM configuring Secure Boot](../../images/incus-webui-vm-configure-secure-boot.png)
+![Incus VMでセキュアブートを設定](../../images/incus-webui-vm-configure-secure-boot.png)
 
-Add a TPM device.
+TPMデバイスを追加します。
 
-![Incus VM configuring TPM](../../images/incus-webui-vm-configure-tpm.png)
+![Incus VMでTPMを設定](../../images/incus-webui-vm-configure-tpm.png)
 
 ```
 
 ````
 
-### Secure Boot and TPM configuration
+### セキュアブートとTPMの設定
 
-IncusOS depends on Secure Boot and a v2.0 TPM. When configuring the virtual machine, make the following selections:
+IncusOSではセキュアブートとv2.0のTPMが必要です。仮想マシンを設定する際は、以下のように設定してください：
 
-* Set `security.secureboot=false` to disable loading of the default Secure Boot keys (Microsoft) allowing IncusOS to enroll its own
+* （Microsoftの）デフォルトのセキュアブートの鍵の読み込みを無効化し、IncusOSが自身の鍵を登録できるように`security.secureboot=false`と設定します
 
-* Add a virtual TPM device
+* 仮想のTPMデバイスを追加します
 
-### CPU, memory, network, and local storage
+### CPU、メモリー、ネットワーク、ローカルストレージ
 
-Configure the CPU and memory for the virtual machine as desired and add at least one network interface.
+仮想マシンのCPUとメモリをお好みに合わせて設定し、少なくとも1つのネットワークインターフェースを追加します。
 
-Remember that the main system drive must be at least 50GiB or larger.
+メインのシステムドライブは50GiB以上にすることを忘れないでください。
 
-## IncusOS installation
+## IncusOSのインストール
 
 ````{tabs}
 
-```{group-tab} Command line
+```{group-tab} コマンドライン
 
-Start the virtual machine, and IncusOS will begin its installation.
+仮想マシンを起動すると、IncusOSがインストールを開始します。
 
     incus start IncusOS
 
-Wait a few seconds for the Secure Boot key enrollment to occur, then attach to the virtual machine's console.
+セキュアブートの鍵が登録されるまで数秒待って、仮想マシンのコンソールにアタッチします。
 
     incus console IncusOS --type=vga
 
-![Incus VM installing IncusOS](../../images/incus-cli-vm-install.png)
+![Incus VMにIncusOSをインストール](../../images/incus-cli-vm-install.png)
 
-Upon completion of the install, stop the virtual machine and remove the CDROM device.
+インストールが完了したら、仮想マシンを停止しCDROMデバイスを取り外します。
 
     incus stop IncusOS
     incus config device remove IncusOS boot-media
 
-![Incus VM installation complete](../../images/incus-cli-vm-install-complete.png)
+![Incus VMにインストール完了](../../images/incus-cli-vm-install-complete.png)
 
 ```
 
-```{group-tab} Web interface
+```{group-tab} ウェブインターフェース
 
-Start the virtual machine, and IncusOS will begin its installation.
+仮想マシンを起動すると、IncusOSがインストールを開始します。
 
-![Incus VM installing IncusOS](../../images/incus-webui-vm-install.png)
+![Incus VMにIncusOSをインストール](../../images/incus-webui-vm-install.png)
 
-Upon completion of the install, click "Detach ISO" to remove the CDROM device and then stop the virtual machine.
+インストールが完了したら、"Detach ISO"をクリックしてCDROMデバイスを取り外して仮想マシンを停止します。
 
-![Incus VM installation complete](../../images/incus-webui-vm-install-complete.png)
+![Incus VMにインストール完了](../../images/incus-webui-vm-install-complete.png)
 
 ```
 
 ````
 
-## IncusOS is ready for use
+## IncusOSを使い始めます
 
 ````{tabs}
 
-```{group-tab} Command line
+```{group-tab} コマンドライン
 
-Start the virtual machine, and IncusOS will perform its first boot configuration.
+仮想マシンを起動すると、IncusOSが初回ブート時の設定を実行します。
 
     incus start IncusOS --console=vga
 
-![Incus VM running IncusOS](../../images/incus-cli-vm-incusos-running.png)
+![Incus VMがIncusOSを実行](../../images/incus-cli-vm-incusos-running.png)
 
 ```
 
-```{group-tab} Web interface
+```{group-tab} ウェブインターフェース
 
-Start the virtual machine, and IncusOS will perform its first boot configuration.
+仮想マシンを起動すると、IncusOSが初回ブート時の設定を実行します。
 
-![Incus VM running IncusOS](../../images/incus-webui-vm-incusos-running.png)
+![Incus VMがIncusOSを実行](../../images/incus-webui-vm-incusos-running.png)
 
 ```
 
 ````
 
-Once complete, follow the instructions for [accessing the system](../access.md).
+完了したら、[システムにアクセス](../access.md)の手順に従ってください。

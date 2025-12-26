@@ -1,76 +1,77 @@
-# Backup/Restore
+# バックアップ／リストアー
 
-IncusOS can perform a system-level backup of its configuration and state. This backup can then be restored at a later point in time. Additionally, a full factory reset can be performed which will bring IncusOS back to a clean state as if it had just been installed.
-
-```{important}
-The system-level backup doesn't include information from any installed applications. Each application has its own backup/restore functionality which can be used in conjunction with the system-level backup to perform a comprehensive system backup.
-```
-
-## Backup
+IncusOSは設定と状態でシステムレベルでバックアップできます。このバックアップは後の時点でリストアーできます。さらに、ファクトリーリセットも可能です。これはIncusOSをあたかもインストール直後のようなまっさらな状態に
+戻します。
 
 ```{important}
-An IncusOS backup will contain its current state as well as copies of the encryption key(s) for any storage pool(s). As such, the backup should not be stored in any publicly-accessible location.
+システムレベルのバックアップはインストールされたアプリケーションの情報は含みません。各アプリケーションはそれぞれ固有のバックアップ／リストアーの機能を持っており、システムレベルのバックアップと合わせて使うことで、包括的なシステムのバックアップを作成できます。
 ```
 
-Create the backup by running
+## バックアップ
+
+```{important}
+Incusのバックアップは現在の状態に加えてストレージプールの暗号鍵のコピーも含みます。そのため、バックアップは公開アクセス可能な場所に保管すべきではありません。
+```
+
+バックアップを作成するには以下のコマンドを実行します。
 
 ```
 incus admin os system backup backup.tar.gz
 ```
 
-## Restore
+## リストアー
 
 ```{warning}
-Restoring a backup will overwrite any existing OS-level state and potentially one or more encryption keys. As such, use caution when restoring.
+バックアップをリストアーすると既存のOSレベルの状態と潜在的には1つ以上の暗号鍵を上書きします。そのため、リストアーする際は注意してください。
 ```
 
-### Configuration options
+### 設定オプション
 
-The following "skip" options can be set when restoring a backup:
+設定フィールドは[`SystemReset`構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_reset.go)で定義されています。
 
-* `encryption-recovery-keys`: Don't overwrite any existing main system drive encryption recovery keys.
+以下の「スキップ」オプションがバックアップをリストアーする際に指定できます：
 
-* `local-data-encryption-key`: Don't overwrite the `local` storage pool's encryption key.
+* `encryption-recovery-keys`: メインシステムドライブの暗号リカバリー鍵を上書きしない。
 
-* `network-macs`: Don't use any hard-coded MACs from the backup, but rather attempt to determine the proper MACs from the existing interfaces.
+* `local-data-encryption-key`: `local`ストレージプールの暗号鍵を上書きしない。
 
-### Examples
+* `network-macs`: バックアップに含まれるハードコードされたMACアドレスを使用せず、既存のインターフェースから適切なMACアドレスを決定することを試みる。
 
-Restore the backup by running
+### 例
+
+バックアップをリストアーするには以下のコマンドを実行します。
 
 ```
 incus admin os system restore backup.tar.gz
 ```
 
-## Factory reset
+## ファクトリーリセット
 
 ```{warning}
-A factory reset will erase all data on the main system drive. This includes any installed applications, their configuration and the system-level state and configuration.
+ファクトリーリセットはメインシステムドライブのすべてのデータを消去します。これはインストールされたアプリケーションとその設定そしてシステムレベルの状態を設定を含みます。
 
-User-created storage pools will be untouched, but will be unable to be imported when the system reboots. Be certain you have a copy of each storage pool's encryption key __before__ performing the factory reset.
+ユーザーが作成したプールは変更されませんが、システムがリブートした際にインポートはできません。ファクトリーリセットを実行する__前に__各ストレージプールの暗号鍵を持っていることを確認してください。
 ```
 
-### Configuration options
+### 設定オプション
 
-Configuration fields are defined in the [`SystemReset` struct](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_reset.go).
+ファクトリーリセットを実行する際に以下の設定オプションを指定できます：
 
-The following configuration options can be set when performing a factory reset:
+* `allow_tpm_reset_failure`: `true`の場合、TPMの状態のリセットに失敗しても無視します。
 
-* `allow_tpm_reset_failure`: If `true`, ignore failures when resetting TPM state.
+* `seeds`: システムを再起動する直前にシードパーティションに書くシードのマップ。システムが起動後に自身の設定を行う際に既存のシードデータを変更するのに役立ちます。
 
-* `seeds`: A map of seeds to write to the seed partition just before rebooting the system. This can be useful to change/update existing seed data when the system configures itself after booting.
+* `wipe_existing_seeds`: `true`の場合、シードパーティションに存在する既存のすべてのシードデータを消去します。
 
-* `wipe_existing_seeds`: If `true`, wipe any existing seed data that may be present in the seed partition.
+### 例
 
-### Examples
-
-Perform a basic reset that will reuse any existing seed data by running
+既存のすべてのシードデータを再利用するベーシックなリセットを実行するには以下のコマンドを実行します。
 
 ```
 incus admin os system factory-reset
 ```
 
-Perform a reset that allows TPM failure, wipes any existing seeds, and configures a basic Incus application upon reboot by running
+TPMの失敗を許容し、既存のシードを消去し、再起動時にベーシックなIncusアプリケーションを設定するようにリセットを実行するには以下のコマンドを実行します。
 
 ```
 incus admin os system factory-reset -d '{"allow_tpm_reset_failure":true,"wipe_existing_seeds":true,"seeds":{"incus":{"apply_defaults":true}}}'

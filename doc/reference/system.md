@@ -1,22 +1,18 @@
-# System configuration
-IncusOS runs a management daemon which is responsible not just of
-starting and stopping the various applications and services but also of
-correctly bringing up system networking and storage, handle updates and
-manage encryption keys.
+# システム設定
+IncusOSは管理用デーモンを稼働しています。それはさまざまなアプリケーションやサービスの起動と終了に責任を持つだけではなく、システムのネットワークやストレージを正常に起動し、アップデートを処理し、暗号鍵を管理する責任も持っています。
 
-Those core system functions each have their own state and configuration
-as well as relevant actions.
+これらのコアシステム機能はそれぞれが自身の状態を設定と関連するアクションを持っています。
 
 ```{toctree}
 :maxdepth: 1
 
-Backup/Restore </reference/system/backup>
-Logging </reference/system/logging>
-Network </reference/system/network>
-Power </reference/system/power>
-Providers </reference/system/providers>
-Resources </reference/system/resources>
-Security </reference/system/security>
-Storage </reference/system/storage>
-Update </reference/system/update>
+バックアップ／リストアー </reference/system/backup>
+ロギング </reference/system/logging>
+ネットワーク </reference/system/network>
+電源 </reference/system/power>
+プロバイダー </reference/system/providers>
+リソース </reference/system/resources>
+セキュリティー </reference/system/security>
+ストレージ </reference/system/storage>
+更新 </reference/system/update>
 ```

@@ -1,124 +1,122 @@
-# Installing in a VMware virtual machine
+# VMwareの仮想マシン内にインストール
 
-IncusOS can be easily installed in a VMware virtual machine when running with vSphere.
-
-```{note}
-IncusOS requires the use of a virtual TPM device, this appears to require the use of vSphere and won't work on standalone ESXi.
-```
-
-## Configure a key provider
-
-To be able to use virtual TPM devices with VMware, you need to have a suitable key provider defined in vSphere.
-
-![key provider list](../../images/vsphere-tpm-list.png)
-
-If you don't have one already, create a new native key provider.
-
-![key provider creation](../../images/vsphere-tpm-create.png)
-
-And then back it up to complete its initialization.
-
-![key provider creation](../../images/vsphere-tpm-backup.png)
-
-You'll then have a functional key provider and will be able to attach TPM devices to virtual machines.
-
-![key provider list](../../images/vsphere-tpm-ready.png)
-
-## Configure networking
-
-Because IncusOS needs runs nested container and virtual machines, the
-VMware network security policy must be pretty relaxed to allow for the
-virtual machine to run its internal bridge.
-
-![Network configuration](../../images/vsphere-network.png)
-
-## Get and import install media
-
-Follow the instructions to [get an IncusOS image](../download.md). This document will assume an ISO image is used.
-
-Once downloaded, upload the ISO image to a VMware datastore.
-
-![ISO upload in VMware datastore](../../images/vsphere-upload-vm.png)
-
-## Create a new virtual machine
-
-Pick a name and location.
-
-![Set VM name and location](../../images/vsphere-create-vm1.png)
-
-Pick a server to run the virtual machine on.
-
-![Set server](../../images/vsphere-create-vm2.png)
-
-Select a datastore for the root disk.
-
-![Select datastore](../../images/vsphere-create-vm3.png)
-
-Select the compatibility level (default is fine).
-
-![Pick compatibility level](../../images/vsphere-create-vm4.png)
-
-Select `Linux` and `Other 6.x or later Linux (64-bit)` as the operating system.
-
-![Select operating system](../../images/vsphere-create-vm5.png)
-
-Customize the virtual machine hardware, recommended changes are:
-
-- Set at least 4 CPUs and 4GiB of RAM
-- Add a NVMe controller
-- Set the root disk size to 50GiB and attach it to the NVMe controller
-- Detach the SCSI controller (now unused)
-- Attach a TPM module
-- Attach the previously uploaded ISO image to the CDROM device and make sure to have it connect on start-up
-
-![Customize the virtual machine](../../images/vsphere-create-vm6.png)
-
-In the options tab, under `Boot Options`, make sure that `Secure Boot` is enabled.
-
-![Enable Secure Boot](../../images/vsphere-create-vm7.png)
-
-In the additional options tab, add the following entries:
-
-- `uefi.secureBoot.kekDefault.file0` set to `secureboot-KEK-R1.der`
-- `uefi.secureBoot.dbDefault.file0` set to `secureboot-2025-R1.der`
-- `uefi.secureBoot.dbDefault.file1` set to `secureboot-2026-R1.der`
-
-Then complete the virtual machine creation.
+vSphereを使っている場合IncusOSはVMwareの仮想マシン内に簡単にインストールできます。
 
 ```{note}
-Do not start the virtual machine at this point or it will create a bad Secure Boot state.
+IncusOSは仮想TPMデバイスの使用が必要です。このためvSphereの利用が必要でスタンドアロンのESXiでは要件を満たせません。
 ```
 
-## Upload the Secure Boot keys
-Open the datastore view and go to the virtual machine's folder.
+## キープロバイダーを設定
 
-Then go to [`https://images.linuxcontainers.org/os/keys/`](https://images.linuxcontainers.org/os/keys/) and download:
+VMwareで仮想TPMデバイスを使えるようにするには、vSphereに適切なキープロバイダーを作る必要があります。
+
+![キープロバイダーのリスト](../../images/vsphere-tpm-list.png)
+
+キープロバイダーがない場合は、新たにネイティブのキープロバイダーを作成します。
+
+![キープロバイダーの作成](../../images/vsphere-tpm-create.png)
+
+次にそれをバックアップして初期化を完了します。
+
+![キープロバイダーのバックアップ](../../images/vsphere-tpm-backup.png)
+
+キープロバイダーを作成したことで仮想マシンにTPMデバイスをアタッチできるようになります。
+
+![キープロバイダーが準備完了](../../images/vsphere-tpm-ready.png)
+
+## ネットワークの設定
+
+IncusOSはネストしたコンテナーと仮想マシンを動かす必要があるため、仮想マシンが内側のブリッジを使えるようにするためにVMwareのネットワークセキュリティーポリシーをかなり緩める必要があります。
+
+![ネットワーク設定](../../images/vsphere-network.png)
+
+## インストールメディアの取得とインポート
+
+[IncusOSイメージの取得](../download.md)の手順に従ってください。このドキュメントではISOイメージを使うことを前提とします。
+
+ダウンロードが完了したら、VMwareのデータストアーにISOイメージをアップロードします。
+
+![VMwareのデータストアーにISOをアップロード](../../images/vsphere-upload-vm.png)
+
+## 仮想マシンを作成する
+
+名前と場所を選びます。
+
+![VMの名前と場所を設定](../../images/vsphere-create-vm1.png)
+
+仮想マシンを稼働させるサーバーを選択します。
+
+![サーバーを設定](../../images/vsphere-create-vm2.png)
+
+ルートディスクのデータストアーを選択します。
+
+![データストアーを選択](../../images/vsphere-create-vm3.png)
+
+互換性レベルを選択します（デフォルトでOK）。
+
+![互換性レベルを選択](../../images/vsphere-create-vm4.png)
+
+`Linux`を選択しオペレーティングシステムは`Other 6.x or later Linux (64-bit)`にします。
+
+![オペレーティングシステムを選択](../../images/vsphere-create-vm5.png)
+
+仮想マシンのハードウェアーをカスタマイズします。推奨する変更は以下のとおりです：
+
+- 少なくとも4つのCPUと4GiBのRAM
+- NVMeコントローラーを追加
+- ルートディスクのサイズを50GiBに設定してNVMeコントローラーにアタッチ
+- SCSIコントローラーをデタッチ（使われないため）
+- TPMモジュールをアタッチ
+- アップロード済みのISOイメージをCDROMデバイスにアタッチし、起動時に接続されるように設定
+
+![仮想マシンをカスタマイズ](../../images/vsphere-create-vm6.png)
+
+オプションタブの`Boot Options`で`Secure Boot`を忘れずに有効にしてください。
+
+![セキュアブートを有効化](../../images/vsphere-create-vm7.png)
+
+追加オプションのタブで、以下のエントリーを追加します：
+
+- `uefi.secureBoot.kekDefault.file0`を`secureboot-KEK-R1.der`に設定
+- `uefi.secureBoot.dbDefault.file0`を`secureboot-2025-R1.der`に設定
+- `uefi.secureBoot.dbDefault.file1`を`secureboot-2026-R1.der`に設定
+
+そして仮想マシンの作成を完了します。
+
+```{note}
+この時点では仮想マシンを起動しないでください。セキュアブートの設定が異常になってしまいます。
+```
+
+## セキュアブートの鍵をアップロード
+データベースビューを開いて仮想マシンのフォルダーを開きます。
+
+[`https://images.linuxcontainers.org/os/keys/`](https://images.linuxcontainers.org/os/keys/)を開いて以下の鍵をダウンロードします：
 
 - `secureboot-KEK-R1.der`
 - `secureboot-2025-R1.der`
 - `secureboot-2026-R1.der`
 
-Once downloaded, upload those three files to the virtual machine's folder.
+ダウンロード出来たら、これらのファイルを仮想マシンのフォルダーにアップロードします。
 
-![Upload Secure Boot keys](../../images/vsphere-upload-keys.png)
+![セキュアブートの鍵をアップロード](../../images/vsphere-upload-keys.png)
 
-## IncusOS installation
+## IncusOSのインストール
 
-Start the virtual machine, and IncusOS will begin its installation.
+仮想マシンを起動すると、IncusOSがインストールを開始します。
 
 ```{note}
-VMware takes a very long time to hash the kernel image during boot.
-This leads to a black screen lasting around 3 minutes following the boot loader message.
+VMwareは起動時にカーネルイメージのハッシュ値を算出するのに非常に長い時間がかかります。
+このため約3分間は真っ黒な画面になりますが、その後ブートローダーのメッセージが表示されます。
 ```
 
-![Installation](../../images/vsphere-install.png)
+![インストール](../../images/vsphere-install.png)
 
-Once installed, stop the virtual machine and edit its settings to disconnect the CDROM device.
+インストールが完了したら、仮想マシンを停止し設定を編集してCDROMデバイスを切断します。
 
-![Detach the ISO](../../images/vsphere-detach-iso.png)
+![ISOをデタッチ](../../images/vsphere-detach-iso.png)
 
-## IncusOS is ready for use
+## IncusOSを使い始めます
 
-Start the virtual machine, and IncusOS will perform its first boot configuration. Once complete, follow the instructions for [accessing the system](../access.md).
+仮想マシンを起動すると、IncusOSが初回ブート時の設定を実行します。完了したら、[システムにアクセス](../access.md)の手順に従ってください。
 
-![Installed system](../../images/vsphere-installed.png)
+![インストールされたシステム](../../images/vsphere-installed.png)

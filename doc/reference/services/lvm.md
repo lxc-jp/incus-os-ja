@@ -1,13 +1,13 @@
 # LVM
 
-The LVM service allows configuring of a clustered LVM storage backend.
+LVMサービスはクラスターのLVMストレージバックエンドを設定できるようにします。
 
-## Configuration options
+## 設定オプション
 
-The full API structs for the service can be viewed [online](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_lvm.go).
+このサービスの完全なAPIの構造体は[オンライン](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_lvm.go)でご覧いただけます。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `enabled`: If `true`, enable the LVM service.
+* `enabled`: `true`の場合、LVMサービスを有効化します。
 
-* `system_id`: A cluster-unique host identifier.
+* `system_id`: クラスター内でユニークなホストの識別子。

@@ -1,88 +1,69 @@
-# Installation seed
-IncusOS depends on an "install seed" to automate the installation process.
+# インストールシード
+IncusOSはインストールのプロセスを自動化するために「インストールシード」に依存しています。
 
-That seed is normally automatically generated when [getting an image](../getting-started/download.md).
+このシートは通常[イメージの取得](../getting-started/download.md)の際に自動で生成されます。
 
-For more advanced use, it's possible to provide your own seed data using the information below.
+より高度な用途には、下記の情報を使ってあなた自身のシードデータを提供できます。
 
-## Format and location
-The install seed is a simple tar archive consisting of one or more JSON or YAML
-configuration files. The tar file is written directly to the start of the second
-partition of the install image. At runtime, IncusOS will attempt to read the
-install seed from the second partition and use any data present during the
-install process.
+## 形式と配置
+インストールシードは1つ以上のJSONまたはYAMLの設定ファイルからなる単なるtarアーカイブです。
+tarファイルはインストールイメージの第2パーティションの先頭に直接かかれます。
+実行時に、IncusOSは第2パーティションからインストールシードの読み取りを試み、そこにあるデータをインストールプロセス中に使います。
 
-Alternatively, a user-provided seed partition may be provided independent of
-the install image. The partition label must be `SEED_DATA` on either a USB
-drive formatted as FAT or an ISO image. Rather than reading a tar archive,
-the install logic will attempt to directly read the JSON or YAML configuration
-files from the mounted file system. Upon completion of the install, it is up
-to the user to disconnect their seed device from the machine, otherwise Incus
-OS will become confused when it starts up and detects that seed data is still
-present. (The install process wipes the seed data tar archive from the final
-install, but we cannot do this with a user-provided seed.)
+あるいは、ユーザーが提供するシードのパーティションをインストールイメージとは無関係に提供できます。
+パーティションのラベルは`SEED_DATA`である必要がありUSBドライブはFATまたはISOイメージとしてフォーマットされている必要があります。
+tarアーカイブを読むのとは違い、インストールのロジックはマウントされたファイルシステムからJSONあるいはYAMLの設定ファイルを直接読もうと試みます。
+インストールの完了時に、マシンからシードドライブを切断するかどうかはユーザー次第です。
+IncusOSは起動時にシードデータがまだ存在する場合は混乱することでしょう。
+（インストールプロセスは最終インストールからデードデータのtarアーカイブを消去しますが、ユーザー提供のシードにはこれはできません。）
 
-## Seed contents
-The following configuration files are currently recognized:
+## シードの中身
+現時点では以下の設定ファイルが認識されます：
 
 ### `install.{json,yml,yaml}`
-The presence of this file, even if empty, will trigger IncusOS to start the
-installation process.
+空であってもこのファイルが存在すれば、IncusOSはインストールプロセスを発動します。
 
-The structure is defined in [`api/seed/install.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/install.go):
+この構造体は[`api/seed/install.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/install.go)で定義されています：
 
-- `force_install`: If true, will install to target device even if partitions
-  already exist. WARNING: THIS CAN CAUSE DATA LOSS!
+- `force_install`: trueの場合、パーティションが既に存在していてもターゲットデバイスにインストオールします。警告：これはデータ消失を引き起こすかもしれません！
 
-- `force_reboot`: If true, reboot after install without waiting for removal of
-  install media.
+- `force_reboot`: trueの場合、インストール後にインストールメディアの除去を待たずに再起動します。
 
-- `target`: An optional selector used to determine the install target device.
-  If not specified, IncusOS will expect a single unused drive to be present
-  during install.
+- `target`: オプショナルでインストールのターゲットデバイスを決定するのに使うセレクター。指定されない場合、IncusOSはインストール時に未使用のドライブが1つあることを期待します。
 
 ### `applications.{json,yml,yaml}`
-This file defines what applications should be installed after IncusOS is up and
-running.
+このファイルはIncusOSが稼働した後にどのアプリケーションをインストールするかを指定します。
 
-The structure is defined in [`api/seed/applications.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/applications.go):
+この構造体は[`api/seed/applications.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/applications.go)で定義されています：
 
-- `applications`: Holds an array of applications to install. Currently the
-  only supported application are `incus`, `migration-manager`, and `operations-center`.
+- `applications`: インストールするアプリケーションの配列を保持します。現時点でサポートされているアプリケーションは`incus`、`migration-manager`、`operations-center`のみです。
 
 ### `incus.{json,yml,yaml}`
-This file provides preseed information for Incus.
+このファイルはIncusのプリシード情報を指定します。
 
-The structure is defined in [`api/seed/incus.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/incus.go)
-and references Incus' [`InitPreseed` API](https://github.com/lxc/incus/blob/main/shared/api/init.go):
+この構造体は[`api/seed/incus.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/incus.go)で定義され、Incusの[`InitPreseed` API](https://github.com/lxc/incus/blob/main/shared/api/init.go)を参照しています。
 
-- `apply_defaults`: If true, automatically apply a set of reasonable defaults
-  when installing Incus.
+- `apply_defaults`: trueの場合、Incusのインストール時にだどうなデフォルト値のセットを自動で適用します。
 
-- `preseed`: Additional preseed information to be passed to Incus during
-  install.
+- `preseed`: インストール時にIncusに渡される追加のプリシード情報。
 
 ### `network.{json,yml,yaml}`
-This file defines what network configuration should be applied when IncusOS
-boots. If not specified, IncusOS will attempt automatic {abbr}`DHCP (Dynamic Host Configuration Protocol)`/{abbr}`SLAAC (Stateless Address Configuration)`
-configuration on each network interface.
+このファイルはIncusOSが起動する際に適用すべきネットワーク設定を指定します。
+未指定の場合、IncusOSは各ネットワークインターフェースに自動的な{abbr}`DHCP (Dynamic Host Configuration Protocol)`／{abbr}`SLAAC (Stateless Address Configuration)`を試みます。
 
-The structure used is the [network API struct](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_network.go).
+使用される構造体は[ネットワークAPIの構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_network.go)です。
 
 ### `migration-manager.{json,yml,yaml}`
-This file provides preseed information for Migration Manager.
+このファイルはマイグレーションマネージャーのプリシード情報を指定します。
 
-The structure is defined in [`api/seed/migration_manager.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/migration_manager.go)
-and references Migration Manager's [`system` API](https://github.com/FuturFusion/migration-manager/blob/main/shared/api/system.go).
+この構造体は[`api/seed/migration_manager.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/migration_manager.go)で定義され、マイグレーションマネージャーの[`system` API](https://github.com/FuturFusion/migration-manager/blob/main/shared/api/system.go)を参照しています。
 
 ### `operations-center.{json,yml,yaml}`
-This file provides preseed information for Operations Center.
+このファイルはオペレーションセンターのプリシード情報を指定します。
 
-The structure is defined in [`api/seed/operations_center.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/operations_center.go)
-and references Operations Center's [`system` API](https://github.com/FuturFusion/operations-center/blob/main/shared/api/system.go).
+この構造体は[`api/seed/operations_center.go`](https://github.com/lxc/incus-os/blob/main/incus-osd/api/seed/operations_center.go)で定義され、オペレーションセンターの[`system` API](https://github.com/FuturFusion/operations-center/blob/main/shared/api/system.go)を参照しています。
 
 ### `provider.{json,yml,yaml}`
-This file provides preseed information to configure a given provider, which is used
-to fetch IncusOS updates and applications.
+このファイルはプロバイダーを設定するためのプリシード情報を指定します。これはIncusOSの更新とアプリケーションを取得するのに使われます。
 
-The structure used is the [provider API struct](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_provider.go).
+使用される構造体は[provider APIの構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_provider.go)です。

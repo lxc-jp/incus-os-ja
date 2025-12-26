@@ -1,27 +1,27 @@
 # Tailscale
 
-The [Tailscale](https://tailscale.com/) service allows configuring a Tailscale VPN client.
+[Tailscale](https://tailscale.com/)サービスはTailscale VPNクライアントを設定できるようにします。
 
-## Configuration options
+## 設定オプション
 
-The full API structs for the service can be viewed [online](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_tailscale.go).
+このサービスの完全なAPIの構造体は[オンライン](https://github.com/lxc/incus-os/blob/main/incus-osd/api/service_tailscale.go)でご覧いただけます。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `enabled`: If `true`, enable the Tailscale service.
+* `enabled`: `true`の場合、Tailscaleサービスを有効化します。
 
-* `login_server`: The Tailscale login server.
+* `login_server`: Tailscaleログインサーバー。
 
-* `auth_key`: A Tailscale authentication key.
+* `auth_key`: Tailscale認証鍵。
 
-* `accept_routes`: If `true`, accept routes.
+* `accept_routes`: `true`の場合、ルートを受け付けます。
 
-* `advertised_routes`: An array of routes to advertise.
+* `advertised_routes`: 広告するルートの配列。
 
-* `serve_enabled`: If `true`, expose `localhost:8443` (typically the Incus application) via [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve)
+* `serve_enabled`: `true`の場合、`localhost:8443`（たいていはIncusアプリケーション）を[Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve)経由で公開します。
 
-* `serve_port`: TCP port to expose the HTTPS server to, for example `443` would expose the Incus application on: `https://{hostname}.{tailnet}.ts.net:443/`
+* `serve_port`: HTTPSサーバーを公開するTCPポート、例えば`443`はIncusアプリケーションを`https://{hostname}.{tailnet}.ts.net:443/`で公開します。
 
 ```{warning}
-Enabling Tailscale Serve requires provisioning HTTPS certificates on the dashboard beforehand ([documentation](https://tailscale.com/kb/1153/enabling-https#configure-https))
+Tailscale Serveを有効に数rには事前にダッシュボードでHTTPS証明書の設定が必要です（[ドキュメント](https://tailscale.com/kb/1153/enabling-https#configure-https)）
 ```

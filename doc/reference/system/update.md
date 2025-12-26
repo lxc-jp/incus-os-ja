@@ -1,32 +1,32 @@
-# Update
+# 更新
 
-IncusOS will check the configured [provider](providers.md) for stable updates at each boot and then by default every six hours thereafter. When an update is available, IncusOS will download it, update/restart any applications, and stage the OS update for next boot. Occasionally a Secure Boot key update may also be published, which will be automatically applied before any other available updates.
+IncusOSは毎回の起動時とそれ以降はデフォルトで6時間おきに設定された[プロバイダー](providers.md)で安定版の更新をチェックします。更新が利用可能な場合、IncusOSはそれをダウンロードし、アプリケーションを更新／再起動し、OSの更新を次回の起動時にスケジュールします。時々セキュアブブート鍵の更新も発行されますが、ほかの利用可能な更新の前に自動的に反映されます。
 
-Updates to the stable channel are normally published once a week to pick up the latest stable bug fix release of the Linux kernel as well as any relevant security issues, while the testing channel may see more frequent updates as new features are developed. It is generally recommended to remain on the stable channel.
+stableチャンネルの更新はLinuxカーネルや重要なセキュリティーの問題の最新の安定版のバグフィクスリリースを含む更新が通常は週に一回あります。一方testingチャンネルは新しい機能の開発に応じてより頻繁は更新が行われます。一般的にはstableチャンネルを使い続けることを推奨します。
 
-When an OS update is installed, IncusOS will display a message on the console that a reboot is required to finish applying the update. It will also report this via the REST API update state when queried.
+OSの更新がインストールされる際、IncusOSは更新の適用を完了するには再起動が必要であるとコンソールにメッセージを表示します。REST APIでアップデート情報を問い合わせた際にもこれを報告します。
 
-## Configuration options
+## 設定オプション
 
-Configuration fields are defined in the [`SystemUpdateConfig` struct](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_update.go).
+設定フィールドは[`SystemUpdateConfig`構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_update.go)で定義されています。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `auto_reboot`: If `true`, IncusOS will automatically restart itself after applying an update. Note that this will cause some period of service interruption for any applications running on that server while it reboots. (IncusOS will always automatically reboot if it applies an update on system boot.)
+* `auto_reboot`: `true`の場合、IncusOSは更新を適用後、自動で再起動します。これにより再起動中にそのサーバー上で稼働しているアプリケーションは少しの期間サービスが中断することにご注意ください。（システムの起動中に更新を適用する場合はIncusOSは常に自動で再起動します。）
 
-* `channel`: Either `stable` or `testing`.
+* `channel`: `stable`か`testing`のいずれか。
 
-* `check_frequency`: A string that is parsable as a duration by Go's `time.ParseDuration()` or the special value `never`. Controls the frequency that IncusOS will use when checking for updates. Setting to `never` disables any automatic updates; this is typically discouraged as the system will be dependent on manual update checks to receive any security updates.
+* `check_frequency`: Goの`time.ParseDuration()`でパースできる文字列あるいは`never`という特殊値。IncusOSが更新をチェックする際に使う頻度を制御します。`never`に設定すると自動更新を無効化します。システムがセキュリティーの更新を受け取るのに手動の更新チェックに依存することになるので、これは通常は避けてください。
 
-* `maintenance_windows`: An optional list of maintenance windows.
+* `maintenance_windows`: オプショナルのメンテナンスウィンドウのリスト。
 
-## Maintenance windows
+## メンテナンスウィンドウ
 
-IncusOS supports defining maintenance windows that limit when the system will check for and apply updates. This can be useful to prevent updates from being installed during normal business hours or other inconvenient times. Each maintenance window consists of a start time and an end time (assumed to be in the system's configured timezone) and an optional start day of week and end day of week.
+IncusOSはシステムが更新をチェックし適用する時間帯を制限するメンテナンスウィンドウを定義することをサポートしています。これは通常の営業時間や他の不便な時間帯に更新がインストールされるのを回避するのに役立ちます。各メンテナンスウィンドウは（システムで設定されたタイムゾーンでの）開始時間と終了時間から構成され、オプショナルで週の開始日と週の終了日を持ちます：
 
-### Examples
+### 例
 
-Allow updates daily each night between 10pm - 6am:
+毎日10pm～6amの間に更新を許可する：
 
 ```
 {
@@ -43,7 +43,7 @@ Allow updates daily each night between 10pm - 6am:
 }
 ```
 
-Allow updates only on the weekend:
+週末にのみ更新を許可する：
 
 ```
 {
@@ -62,9 +62,9 @@ Allow updates only on the weekend:
 }
 ```
 
-## Manually checking for an update
+## 更新を手動でチェック
 
-You can instruct IncusOS to check for an update at any time by running
+任意の時点でIncusOSに更新をチェックするには以下のコマンドを実行します。
 
 ```
 incus admin os system update check

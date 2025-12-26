@@ -1,60 +1,48 @@
-# Getting an image
-ISO and raw images are distributed via the [Linux Containers {abbr}`CDN (Content Delivery Network)`](https://images.linuxcontainers.org/os/).
+# イメージの取得
+ISOとrawイメージが[Linux Containers {abbr}`CDN (Content Delivery Network)`](https://images.linuxcontainers.org/os/)で配布されています。
 
-IncusOS doesn't feature a traditional installer, and relies on an [installation seed](../reference/seed.md)
-to provide configuration details and defaults during install. This install
-seed can be manually crafted, or you can use either of the two utilities
-described below to automate the process.
+IncusOSは従来のインストーラーは提供しておらず、インストール中に設定の詳細とデフォルトを指定するために[インストール・シード](../reference/seed.md)に依存しています。
+このインストール・シードは手動で作成することもできますし、あるいは以下に記載する2つのユーティリティーのいずれかを使って作成を自動化することももできます。
 
-There are two more user-friendly methods to get an IncusOS install image:
+IncusOSのインストールイメージを取得するユーザーフレンドリーな方法が2つあります：
 
-- A web-based customization tool
-- A command line flasher tool
+- ウェブベースのカスタマイズツール
+- コマンドラインのフラッシャーツール
 
-In either case, you will need to provide an initial trusted client certificate.
+どちらの場合も、最初に使用する信頼済みのクライアント証明書を指定する必要があります。
 
-You can get yours by running
+クライアント証明書は以下のコマンドを実行することで取得できます。
 
     incus remote get-client-certificate
 
 ```{tip}
-If you don't already have the Incus client installed, you can download a statically-linked binary for Linux, MacOS, or Windows from the latest [Incus release](https://github.com/lxc/incus/releases/latest/) on GitHub. Select the `bin.<os>.incus.<arch>` binary that is correct for your operating system and architecture.
+Incusのクライアントをインストール済みではない場合、GitHub上の最新の[Incus release](https://github.com/lxc/incus/releases/latest/)からLinux、MacOS、Windowsのスタティックリンク版の実行ファイルをダウンロードできます。あなたのオペレーティングシステムとアーキテクチャーにあった`bin.<os>.incus.<arch>`のバイナリーを選んでください。
 ```
 
-## IncusOS customizer
+## IncusOSカスタマイザー
 
-The web-based [IncusOS customizer](https://incusos-customizer.linuxcontainers.org/ui/)
-is the most user-friendly way to get an IncusOS install image. The web page
-will let you make a few simple selections, then directly download an install
-image that's ready for immediate use.
+ウェブベースの[IncusOS customizer](https://incusos-customizer.linuxcontainers.org/ui/)がIncusOSのインストールイメージを取得するもっともユーザーフレンドリーな方法です。ウェブページ上でいくつかのシンプルな選択をしたら、すぐに使えるインストールイメージをダウンロードします。
 
-## Flasher tool
+## フラッシャーツール
 
-The flasher tool is provided for advanced users who need
-to perform more customizations of the install seed than the web-based customizer
-supports.
+ウェブベースのカスタマイザーがサポートするより多くのインストール・シードのカスタマイズが必要な上級ユーザーのためにフラッシャーツールを提供しています。
 
 ```{note}
-Currently, the flasher tool is only available for Linux systems.
+現時点では、フラッシャーツールはLinuxシステム向けにのみ提供しています。
 ```
 
-It can be built and run on a system with the Go compiler installed using:
+Goコンパイラーがインストール済みのシステムで以下のコマンドを使ってビルドできます：
 
     go install github.com/lxc/incus-os/incus-osd/cmd/flasher-tool@latest
     flasher-tool
 
-When run, you will first be prompted for the image format you want to use, either `iso`
-(default) or an `img` (raw) disk image. Note that the ISO isn't a hybrid image; if you
-want to boot from a USB stick you should choose the `img` disk image format.
+実行すると、最初に使用したいイメージ形式を聞くプロンプトが表示されますので`iso`（デフォルト）あるいは`img`（raw）ディスクイメージを選んでください。ISOはハイブリッドイメージではありませんので、USBメモリーからブートしたい場合は`img`ディスクイメージ形式を選ぶ必要があることにご注意ください。
 
-The flasher tool will then connect to the Linux Containers CDN and download the
-latest release.
+次にフラッシャーツールはLinux ContainersのCDNに接続し最新のリリースをダウンロードします。
 
-Once downloaded, you will be presented with an interactive menu you can use to
-customize the install options.
+ダウンロードしたら、インタラクティブなメニューが表示されインストールオプションをカスタマイズできます。
 
-To get your certificate trusted by Incus during installation, you'll
-have to provide an Incus seed like this, substituting your certificate:
+インストール中にIncusによって信頼される証明書を得るには、以下のようにIncusシードを提供する必要があります。証明書はあなたの証明書で置き換えてください。
 
 ```
 apply_defaults: true
@@ -78,8 +66,6 @@ preseed:
             -----END CERTIFICATE-----
 ```
 
-After writing the image and exiting, you can then install IncusOS from the
-resulting image.
+イメージを書き出して終了したら、そのイメージでIncusOSをインストールできます。
 
-A variety of command line arguments can be provided to the flasher tool,
-allowing for its use in an automated fashion such as from within a script.
+フラッシャーツールではさまざまなコマンドライン引数を指定できますので、スクリプト内から自動的な方法で使うこともできます。

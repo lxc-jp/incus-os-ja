@@ -1,18 +1,18 @@
-# Reference
-This reference documentation covers every aspect of IncusOS.
+# リファレンス
+リファレンスドキュメントはIncusOSのあらゆる側面をカバーします。
 
-It includes details for all installable applications, system services and general system configuration.
-In addition, it also provides some detailed background information on core features of IncusOS.
+インストールできるすべてのアプリケーション、システムサービス、全般的なシステム設定の詳細を含みます。
+加えて、IncusOSのコア機能の詳細な背景情報もいくらか提供します。
 
 ```{toctree}
 :maxdepth: 1
 
-Applications </reference/applications>
-Services </reference/services>
-System configuration </reference/system>
+アプリケーション </reference/applications>
+サービス </reference/services>
+システム設定 </reference/system>
 API </reference/api>
-Partitioning scheme </reference/partitioning-scheme>
-Recovery </reference/recovery>
-Seed </reference/seed>
-Security </reference/security>
+パーティショニング手法 </reference/partitioning-scheme>
+リカバリー </reference/recovery>
+シード </reference/seed>
+セキュリティー </reference/security>
 ```

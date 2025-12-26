@@ -1,15 +1,15 @@
-# Logging
+# ロギング
 
-IncusOS can be configured to log to a remote syslog server.
+IncusOSはリモートのsyslogサーバーにログ出力するように設定できます。
 
-## Configuration options
+## 設定オプション
 
-Configuration fields are defined in the [`SystemLoggingSyslog` struct](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_logging.go).
+設定フィールドは[`SystemLoggingSyslog`構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_logging.go)で定義されています。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
+\
+* `address`: リモートのsyslogサーバーのIPアドレス。
 
-* `address`: The remote syslog server IP address.
+* `protocol`: リモートのsyslogサーバーに接続する際に使用するプロトコル。
 
-* `protocol`: The protocol to use when connecting to the remote syslog server.
-
-* `log_format`: The format of log entries to use.
+* `log_format`: 使用するログエントリーの形式。

@@ -1,30 +1,30 @@
-# Security
+# セキュリティー
 
-IncusOS has a fairly robust [security setup](../security.md) that is enforced on all systems. Under normal operation, IncusOS relies on the TPM to automatically unlock the main system drive, which in turn holds the encryption keys for any [storage pools](storage.md).
+IncusOSはすべてのシステムで強制されるかなり堅牢な[セキュリティー設定](../security.md)を持ちます。通常の運用では、IncusOSはTPMを信頼し、メインシステムドライブを自動でロック解除し、次に[ストレージプール](storage.md)の暗号鍵を取得します。
 
-As part of its first boot, IncusOS generates a strong recovery key that can be used to decrypt the main system drive in recovery scenarios, such accidental TPM reset or needing to perform offline data recovery. Additional recovery keys can be added if desired. It is imperative to protect the recovery key(s) in a manner consistent with the importance of data stored on the corresponding IncusOS system.
+IncusOSは初回起動時に、間違ってTPMをリセットしてしまったり、オフラインでデータ復旧を行うなどの、リカバリーシナリオでメインシステムドライブを復号するのに使う強力なリカバリーキーを生成します。必要なら追加のリカバリーキーも追加できます。対応するIncusOSシステムに保管されたデータの重要性と同様にリカバリーキーを保護することは重要です。
 
-The recovery key(s) can be retrieved by running
+リカバリーキーを取得するには以下のコマンドを実行します。
 
 ```
 incus admin os system security show
 ```
 
-## Configuration options
+## 設定オプション
 
-Configuration fields are defined in the [`SystemSecurityConfig` struct](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_security.go).
+設定フィールドは[`SystemSecurityConfig`構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_security.go)で定義されています。
 
-The following configuration options can be set:
+以下の設定オプションが設定できます：
 
-* `encryption_recovery_keys`: An array of one or more encryption recovery keys for the IncusOS main system drive. At least one recovery key must always be provided. Any existing recovery key(s) not present in the array will be removed, and any new key(s) will be added. A very simple complexity policy is enforced by IncusOS:
-   * At least 15 characters long
-   * Contain at least one special character
-   * Consist of at least five unique characters
-   * Some other simple complexity checks are applied, and any encryption recovery key that doesn't pass will be rejected with an error
+* `encryption_recovery_keys`: IncusOSのメインシステムドライブの1つ以上のリカバリーキーの配列。少なくとも1つのリカバリーキーを必ず指定する必要があります。この配列に含まれない既存のリカバリーキーは削除され、新しいキーは追加されます。非常にシンプルな複雑度ポリシーがIncusOSにより強制されます：
+   * 少なくとも15文字以上
+   * 少なくとも1つ記号を含む
+   * 少なくとも5つのユニークな文字から構成する
+   * 他のシンプルな複雑度チェックが適用され、パスしない暗号リカバリーキーはエラーで拒否されます
 
-## Resetting TPM bindings
+## TPMバインディングのリセット
 
-If IncusOS fails to automatically unlock the main system drive, after booing using a recovery key, it is possible to forcefully reset the TPM bindings:
+IncusOSがリカバリーキーを使って起動後、メインシステムドライブの自動でのロック解除に失敗した場合、TPMバインディングを強制リセットするには以下のコマンドを実行します：
 
 ```
 incus admin os system security tpm-rebind

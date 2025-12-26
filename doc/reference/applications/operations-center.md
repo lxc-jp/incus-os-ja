@@ -1,17 +1,17 @@
-# Operations Center
+# オペレーションセンター
 
-The Operations Center application includes the latest tagged release of [Operations Center](https://github.com/FuturFusion/operations-center).
+オペレーションセンターアプリケーションは[オペレーションセンター](https://github.com/FuturFusion/operations-center)の最新のタグ付けされたリリースを含みます。
 
-At least one trusted client certificate must be provided in the Operations Center seed, otherwise it will be impossible to authenticate to any API endpoint or the web UI post-install.
+少なくとも1つの信頼されたクライアント証明書をオペレーションセンターのシードに渡す必要があります。これがないとAPIエンドポイントやインストール後の処理を行うウェブUIにアクセスする際に認証ができません。
 
-## Default configuration
+## デフォルト設定
 
-If no preseed configuration is provided, Operations Center will start up listening on port 8443 on all network interfaces. Any trusted client certificate provided will be able to authenticate via API or web UI.
+プリシードの設定がない場合、オペレーションセンターはすべてのネットワークインターフェースで8443番ポートでリッスンします。シードで渡されたクライアント証明書でAPIやウェブUIを介して認証できます。
 
-## Install seed details
+## インストールシードの詳細
 
-Important seed fields include:
+主なシードフィールドは以下のものがあります：
 
-* `trusted_client_certificates`: An array of one or more PEM-encoded client certificates that should be trusted by default.
+* `trusted_client_certificates`: デフォルトで信頼すべき1つ以上のPEMエンコードされたクライアント証明書。
 
-* `preseed`: A struct referencing various Operations Center system configuration options. For details, please review Operations Center's [API](https://github.com/FuturFusion/operations-center/blob/main/shared/api/system.go).
+* `preseed`: オペレーションセンターのシステム設定を参照する構造体。詳細は、オペレーションセンターの[API](https://github.com/FuturFusion/migration-manager/blob/main/shared/api/system.go)を参照してください。

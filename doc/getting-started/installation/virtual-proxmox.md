@@ -1,52 +1,52 @@
-# Installing in a Proxmox virtual machine
+# Proxmoxの仮想マシン内にインストール
 
-IncusOS can be easily installed in a Proxmox virtual machine.
+IncusOSはProxmoxの仮想マシン内に簡単にインストールできます。
 
-## Get and import install media
+## インストールメディアの取得とインポート
 
-Follow the instructions to [get an IncusOS image](../download.md). This document will assume an ISO image is used.
+[IncusOSイメージの取得](../download.md)の手順に従ってください。このドキュメントではISOイメージを使うことを前提とします。
 
-Once downloaded, upload the ISO image to Proxmox's storage.
+ダウンロードが完了したら、ISOイメージをProxmoxのストレージにアップロードします。
 
 ![Proxmox ISO image import](../../images/proxmox-import-iso.png)
 
-## Create a new virtual machine
+## 仮想マシンを作成する
 
-Create a new virtual machine and add the ISO image.
+仮想マシンを作成してISOイメージを追加します。
 
-![Proxmox VM configuring ISO](../../images/proxmox-vm-configure-iso.png)
+![Proxmox VMでISOを設定](../../images/proxmox-vm-configure-iso.png)
 
-### Secure Boot and TPM configuration
+### セキュアブートとTPMの設定
 
-IncusOS depends on Secure Boot and a v2.0 TPM. When configuring the virtual machine, make the following selections:
+IncusOSではセキュアブートとv2.0のTPMが必要です。仮想マシンを設定する際は、以下のように設定してください：
 
-* BIOS should be "OVMF (UEFI)"
+* BIOSは"OVMF (UEFI)"に設定します
 
-* Uncheck "Pre-Enroll keys"
-   * This will allow the IncusOS installer to automatically enroll the necessary Secure Boot keys
+* "Pre-Enroll keys"のチェックを外します。
+   * これによりIncusOSのインストーラーがセキュアブートの必要な鍵を自動で登録できるようになります。
 
-* Check "Add TPM" and set the version to be "v2.0"
+* "Add TPM"にチェックをつけてバージョンを"v2.0"に設定します。
 
-![Proxmox VM configuring Secure Boot and TPM](../../images/proxmox-vm-configure-secure-boot-tpm.png)
+![Proxmox VMでセキュアブートとTPMを設定](../../images/proxmox-vm-configure-secure-boot-tpm.png)
 
-### CPU, memory, network, and local storage
+### CPU、メモリー、ネットワーク、ローカルストレージ
 
-Configure the CPU and memory for the virtual machine as desired and add at least one network interface.
+仮想マシンのCPUとメモリをお好みに合わせて設定し、少なくとも1つのネットワークインターフェースを追加します。
 
-Remember that the main system drive must be at least 50GiB or larger.
+メインのシステムドライブは50GiB以上にすることを忘れないでください。
 
-## IncusOS installation
+## IncusOSのインストール
 
-Start the virtual machine, and IncusOS will begin its installation.
+仮想マシンを起動すると、IncusOSがインストールを開始します。
 
-![Proxmox VM installing IncusOS](../../images/proxmox-vm-install.png)
+![Proxmox VMにIncusOSをインストール](../../images/proxmox-vm-install.png)
 
-Upon completion of the install, stop the virtual machine and remove the CDROM device.
+インストールが完了したら、仮想マシンを停止しCDROMデバイスを取り外します。
 
-![Proxmox VM installation complete](../../images/proxmox-vm-install-complete.png)
+![Proxmox VMにインストール完了](../../images/proxmox-vm-install-complete.png)
 
-## IncusOS is ready for use
+## IncusOSを使い始めます
 
-Start the virtual machine, and IncusOS will perform its first boot configuration. Once complete, follow the instructions for [accessing the system](../access.md).
+仮想マシンを起動すると、IncusOSが初回ブート時の設定を実行します。完了したら、[システムにアクセス](../access.md)の手順に従ってください。
 
-![Proxmox VM running IncusOS](../../images/proxmox-vm-incusos-running.png)
+![Proxmox VMIncusOSを実行](../../images/proxmox-vm-incusos-running.png)
