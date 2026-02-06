@@ -7,7 +7,7 @@ default: build
 
 .PHONY: clean
 clean:
-	sudo -E rm -Rf .cache/ certs/efi/updates/*.tar.gz mkosi.output/ mkosi.packages/initrd-tmpfs-root_*_all.deb
+	sudo -E rm -Rf .cache/ certs/efi/updates/*.tar.gz mkosi.output/ mkosi.packages/*.deb
 	sudo -E $(shell command -v mkosi) clean
 
 .PHONY: incus-osd
@@ -25,15 +25,30 @@ generate-manifests:
 	(cd incus-osd && go build ./cmd/generate-manifests)
 	strip incus-osd/generate-manifests
 
+.PHONY: incusos-initrd-utils
+incusos-initrd-utils:
+	(cd incus-osd && go build ./cmd/incusos-initrd-utils)
+	strip incus-osd/incusos-initrd-utils
+
 .PHONY: initrd-deb-package
-initrd-deb-package:
+initrd-deb-package: inject-system-certs incusos-initrd-utils
 	$(eval OSNAME := $(shell grep "ImageId=" mkosi.conf | cut -d '=' -f 2))
-	(cd mkosi.packages/initrd-tmpfs-root && cp initrd-boot-message.service.in initrd-boot-message.service && sed -i -e "s/@OSNAME@/${OSNAME}/" initrd-boot-message.service && debuild)
-	rm -rf mkosi.packages/initrd-tmpfs-root/debian/.debhelper/  mkosi.packages/initrd-tmpfs-root/debian/debhelper-build-stamp \
-          mkosi.packages/initrd-tmpfs-root/debian/files \mkosi.packages/initrd-tmpfs-root/debian/initrd-tmpfs-root.postrm.debhelper \
-          mkosi.packages/initrd-tmpfs-root/debian/initrd-tmpfs-root.substvars mkosi.packages/initrd-tmpfs-root/debian/initrd-tmpfs-root/ \
-          mkosi.packages/initrd-tmpfs-root_*.dsc mkosi.packages/initrd-tmpfs-root_*.tar.xz mkosi.packages/initrd-tmpfs-root_*.build \
-          mkosi.packages/initrd-tmpfs-root_*.buildinfo mkosi.packages/initrd-tmpfs-root_*.changes
+	cp incus-osd/incusos-initrd-utils mkosi.packages/incusos-initrd-utils/
+	(cd mkosi.packages/incusos-initrd-utils && cp initrd-startup-checks.service.in initrd-startup-checks.service && sed -i -e "s/@OSNAME@/${OSNAME}/" initrd-startup-checks.service && debuild)
+	rm -rf mkosi.packages/incusos-initrd-utils/debian/.debhelper/  mkosi.packages/incusos-initrd-utils/debian/debhelper-build-stamp \
+          mkosi.packages/incusos-initrd-utils/debian/files \mkosi.packages/incusos-initrd-utils/debian/incusos-initrd-utils.postrm.debhelper \
+          mkosi.packages/incusos-initrd-utils/debian/incusos-initrd-utils.substvars mkosi.packages/incusos-initrd-utils/debian/incusos-initrd-utils/ \
+          mkosi.packages/incusos-initrd-utils_*.dsc mkosi.packages/incusos-initrd-utils_*.tar.xz mkosi.packages/incusos-initrd-utils_*.build \
+          mkosi.packages/incusos-initrd-utils_*.buildinfo mkosi.packages/incusos-initrd-utils_*.changes
+
+.PHONY: microcode-metapackage-deb-package
+microcode-metapackage-deb-package:
+	(cd mkosi.packages/microcode-metapackage && debuild)
+	rm -rf mkosi.packages/microcode-metapackage/debian/.debhelper/  mkosi.packages/microcode-metapackage/debian/debhelper-build-stamp \
+          mkosi.packages/microcode-metapackage/debian/files \mkosi.packages/microcode-metapackage/debian/microcode-metapackage.postrm.debhelper \
+          mkosi.packages/microcode-metapackage/debian/microcode-metapackage.substvars mkosi.packages/microcode-metapackage/debian/microcode-metapackage/ \
+          mkosi.packages/microcode-metapackage_*.dsc mkosi.packages/microcode-metapackage_*.tar.xz mkosi.packages/microcode-metapackage_*.build \
+          mkosi.packages/microcode-metapackage_*.buildinfo mkosi.packages/microcode-metapackage_*.changes
 
 .PHONY: static-analysis
 static-analysis:
@@ -54,8 +69,8 @@ ifeq (,$(wildcard ./certs/))
 	./scripts/test/switch-secure-boot-signing-key.sh 1
 endif
 
-.PHONY: build
-build: incus-osd flasher-tool generate-manifests initrd-deb-package
+.PHONY: inject-system-certs
+inject-system-certs:
 ifeq (, $(shell which mkosi))
 	@echo "mkosi couldn't be found, please install it and try again"
 	exit 1
@@ -65,6 +80,12 @@ endif
 	mkdir -p mkosi.images/base/mkosi.extra/boot/EFI/
 	openssl x509 -in mkosi.crt -out mkosi.images/base/mkosi.extra/boot/EFI/mkosi.der -outform DER
 
+	rm -rf mkosi.images/base/mkosi.extra/usr/lib/verity.d/
+	mkdir -p mkosi.images/base/mkosi.extra/usr/lib/verity.d/
+	cp incus-osd/certs/files/secureboot-DB-*.crt mkosi.images/base/mkosi.extra/usr/lib/verity.d/
+
+.PHONY: build
+build: incus-osd flasher-tool generate-manifests initrd-deb-package microcode-metapackage-deb-package
 	cd app-build/ && ./build-applications.py
 
 	# Limit building of the Migration Manager worker image to amd64, since the vmware vddk isn't available for arm64.
@@ -79,10 +100,8 @@ endif
 	sudo -E $(shell command -v mkosi) --cache-dir .cache/ build
 	sudo chown $(shell id -u):$(shell id -g) mkosi.output
 
-ifneq (,$(wildcard ./certs/))
 	# For some reason getting the image name via $(shell ...) is always empty here?
 	sudo ./scripts/inject-secure-boot-vars.sh `ls mkosi.output/IncusOS_*.raw | grep -v usr | grep -v esp | sort | tail -1`
-endif
 
 .PHONY: build-iso
 build-iso: build
@@ -163,6 +182,7 @@ test-applications:
 	echo ${RELEASE} | incus file push - test-incus-os/root/updates/RELEASE
 
 	incus file push mkosi.output/debug.raw test-incus-os/root/updates/
+	incus file push mkosi.output/gpu-support.raw test-incus-os/root/updates/
 	incus file push mkosi.output/incus.raw test-incus-os/root/updates/
 	incus file push mkosi.output/incus-ceph.raw test-incus-os/root/updates/
 	incus file push mkosi.output/incus-linstor.raw test-incus-os/root/updates/
@@ -180,6 +200,7 @@ test-update:
 	incus file push mkosi.output/IncusOS_${RELEASE}.efi test-incus-os/root/updates/
 	incus file push mkosi.output/IncusOS_${RELEASE}.usr* test-incus-os/root/updates/
 	incus file push mkosi.output/debug.raw test-incus-os/root/updates/
+	incus file push mkosi.output/gpu-support.raw test-incus-os/root/updates/
 	incus file push mkosi.output/incus.raw test-incus-os/root/updates/
 	incus file push mkosi.output/incus-ceph.raw test-incus-os/root/updates/
 	incus file push mkosi.output/incus-linstor.raw test-incus-os/root/updates/
@@ -202,7 +223,7 @@ test-update-sb-keys:
 .PHONY: update-gomod
 update-gomod:
 	cd incus-osd && go get -t -v -u ./...
-	cd incus-osd && go mod tidy --go=1.24.7
+	cd incus-osd && go mod tidy --go=1.24.12
 	cd incus-osd && go get toolchain@none
 
 .PHONY: update-app-versions

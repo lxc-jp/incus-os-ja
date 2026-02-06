@@ -208,9 +208,20 @@ func (n *LVM) configure(_ context.Context) error {
 local {
 	host_id = %d
 }
+
+devices {
+	filter = [ "r|/dev/zd*|" ]
+}
 `, n.state.Services.LVM.Config.SystemID)
 
 	err = os.WriteFile("/etc/lvm/lvmlocal.conf", []byte(lvmlocal), 0o600)
+	if err != nil {
+		return err
+	}
+
+	// Disable writing log output to files, although an empty file will still be created.
+	err = os.WriteFile("/etc/default/sanlock", []byte(`sanlock_opts='-L -1'
+`), 0o644)
 	if err != nil {
 		return err
 	}

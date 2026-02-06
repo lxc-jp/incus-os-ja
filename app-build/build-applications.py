@@ -20,6 +20,9 @@ with open("applications.json", "r") as f:
 
 images = [
     ["base", ["incus-osd", "kpx", "tailscale"]],
+    ["gpu-support", [
+        "linux-firmware"]
+    ],
     ["migration-manager", [
         "lego",
         "migration-manager"]
@@ -42,15 +45,20 @@ def build(artifact):
     # Apply version substitutions before doing anything else
     for values in applications[artifact]["build_targets"]:
         for i in range(0, len(values)):
-            values[i] = values[i].replace("@VERSION@", version)
+            values[i] = values[i].replace("@TAG@", version)
+            values[i] = values[i].replace("@VERSION@", version.removeprefix("v"))
     for values in applications[artifact]["install_targets"]:
-        values[0] = values[0].replace("@VERSION@", version)
-        values[1] = values[1].replace("@VERSION@", version)
+        values[0] = values[0].replace("@TAG@", version)
+        values[1] = values[1].replace("@TAG@", version)
+        values[0] = values[0].replace("@VERSION@", version.removeprefix("v"))
+        values[1] = values[1].replace("@VERSION@", version.removeprefix("v"))
         values[0] = values[0].replace("@ARCH@", ARCH)
         values[1] = values[1].replace("@ARCH@", ARCH)
     for values in applications[artifact].get("rename_targets", []):
-        values[0] = values[0].replace("@VERSION@", version)
-        values[1] = values[1].replace("@VERSION@", version)
+        values[0] = values[0].replace("@TAG@", version)
+        values[1] = values[1].replace("@TAG@", version)
+        values[0] = values[0].replace("@VERSION@", version.removeprefix("v"))
+        values[1] = values[1].replace("@VERSION@", version.removeprefix("v"))
 
     targets = applications[artifact]["build_targets"]
 
@@ -60,13 +68,18 @@ def build(artifact):
         if version == "main":
             subprocess.run(["git", "pull"], cwd=artifact, check=True)
         else:
-            subprocess.run(["git", "fetch", "--depth", "1", "origin", "v"+version+":refs/tags/v"+version], cwd=artifact, check=True)
-            subprocess.run(["git", "checkout", "v"+version], cwd=artifact, check=True)
+            subprocess.run(["git", "fetch", "--depth", "1", "origin", version+":refs/tags/"+version], cwd=artifact, check=True)
+            subprocess.run(["git", "checkout", version], cwd=artifact, check=True)
     else:
         if version == "main":
             subprocess.run(["git", "clone", repo, artifact, "--depth", "1", "-b", version], check=True)
         else:
-            subprocess.run(["git", "clone", repo, artifact, "--depth", "1", "-b", "v"+version], check=True)
+            subprocess.run(["git", "clone", repo, artifact, "--depth", "1", "-b", version], check=True)
+
+    # Handle git submodules
+    if applications[artifact].get("submodules", False):
+        subprocess.run(["git", "submodule", "init"], cwd=artifact, check=True)
+        subprocess.run(["git", "submodule", "update"], cwd=artifact, check=True)
 
     # Apply any patches
     for patch in applications[artifact].get("patches", []):
@@ -106,32 +119,34 @@ def create_application_manifest(artifact, version):
         "version": version,
         "repo": applications[artifact]["repo"],
         "installed_artifacts": [],
-        "go_compiler": subprocess.run(["go", "version"], capture_output=True, check=True).stdout.strip().decode("utf-8"),
-        "go_packages": [],
     }
 
     for target in applications[artifact]["install_targets"]:
         manifest["installed_artifacts"].append(os.path.join("/", target[1], os.path.basename(target[0])))
 
-    direct_deps = subprocess.run(["go", "list", "-mod=mod", "-m", "-f", "{{if not (or .Indirect .Main)}}{{.Path}} {{.Version}}{{end}}", "all"], cwd=artifact, capture_output=True, check=True).stdout.strip().decode("utf-8")
-    for line in direct_deps.split("\n"):
-        parts = line.split(" ")
-        manifest["go_packages"].append({
-            "type": "go",
-            "name": parts[0],
-            "version": parts[1],
-            "direct": True
-        })
+    if os.path.exists("go.mod"):
+        manifest["go_compiler"] = subprocess.run(["go", "version"], capture_output=True, check=True).stdout.strip().decode("utf-8")
+        manifest["go_packages"] = []
 
-    indirect_deps = subprocess.run(["go", "list", "-mod=mod", "-m", "-f", "{{if .Indirect}}{{.Path}} {{.Version}}{{end}}", "all"], cwd=artifact, capture_output=True, check=True).stdout.strip().decode("utf-8")
-    for line in indirect_deps.split("\n"):
-        parts = line.split(" ")
-        manifest["go_packages"].append({
-            "type": "go",
-            "name": parts[0],
-            "version": parts[1],
-            "direct": False
-        })
+        direct_deps = subprocess.run(["go", "list", "-mod=mod", "-m", "-f", "{{if not (or .Indirect .Main)}}{{.Path}} {{.Version}}{{end}}", "all"], cwd=artifact, capture_output=True, check=True).stdout.strip().decode("utf-8")
+        for line in direct_deps.split("\n"):
+            parts = line.split(" ")
+            manifest["go_packages"].append({
+                "type": "go",
+                "name": parts[0],
+                "version": parts[1],
+                "direct": True
+            })
+
+        indirect_deps = subprocess.run(["go", "list", "-mod=mod", "-m", "-f", "{{if .Indirect}}{{.Path}} {{.Version}}{{end}}", "all"], cwd=artifact, capture_output=True, check=True).stdout.strip().decode("utf-8")
+        for line in indirect_deps.split("\n"):
+            parts = line.split(" ")
+            manifest["go_packages"].append({
+                "type": "go",
+                "name": parts[0],
+                "version": parts[1],
+                "direct": False
+            })
 
     if applications[artifact].get("build_ui"):
         manifest["yarn_version"] = subprocess.run(["yarnpkg", "--version"], capture_output=True, check=True).stdout.strip().decode("utf-8")
@@ -179,6 +194,15 @@ def create_image_manifest(image, applications):
 
 if __name__ == "__main__":
     for app in applications:
+        skip = False
+        for requirement in applications[app].get("requires", []):
+            if not os.path.exists(requirement):
+                print("Skipping " + app + " due to missing requirement")
+                skip = True
+                break
+        if skip:
+            continue
+
         if app == "incus-osd":
             # incus-osd is already built, so we only need to generate its manifest
             create_application_manifest("incus-osd", "main")

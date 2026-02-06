@@ -1,6 +1,7 @@
 package systemd
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -58,6 +59,11 @@ func validateInterfaces(interfaces []api.SystemNetworkInterface, requireValidMAC
 		}
 
 		err = validateHwaddr(iface.Hwaddr, requireValidMAC)
+		if err != nil {
+			return fmt.Errorf("interface %d %s", index, err.Error())
+		}
+
+		err = validateEthernet(iface.Ethernet)
 		if err != nil {
 			return fmt.Errorf("interface %d %s", index, err.Error())
 		}
@@ -134,6 +140,11 @@ func validateBonds(bonds []api.SystemNetworkBond, requireValidMAC bool) error {
 				return fmt.Errorf("bond %d member %d %s", index, memberIndex, err.Error())
 			}
 		}
+
+		err = validateEthernet(bond.Ethernet)
+		if err != nil {
+			return fmt.Errorf("bond %d %s", index, err.Error())
+		}
 	}
 
 	return nil
@@ -191,6 +202,92 @@ func validateVLANs(cfg *api.SystemNetworkConfig) error {
 			err = validateAddress(route.Via)
 			if err != nil {
 				return fmt.Errorf("vlan %d route %d 'Via' %s", index, routeIndex, err.Error())
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateWireguard(cfg *api.SystemNetworkConfig) error {
+	for index, wg := range cfg.Wireguard {
+		err := validateName(wg.Name)
+		if err != nil {
+			return fmt.Errorf("wireguard %d %s", index, err.Error())
+		}
+
+		err = validateMTU(wg.MTU)
+		if err != nil {
+			return fmt.Errorf("wireguard %d %s", index, err.Error())
+		}
+
+		err = validateRoles(wg.Roles)
+		if err != nil {
+			return fmt.Errorf("wireguard %d %s", index, err.Error())
+		}
+
+		err = validateFirewall(wg.FirewallRules)
+		if err != nil {
+			return fmt.Errorf("wireguard %d %s", index, err.Error())
+		}
+
+		for addressIndex, address := range wg.Addresses {
+			err := validateAddressWithCIDR(address)
+			if err != nil {
+				return fmt.Errorf("wireguard %d address %d %s", index, addressIndex, err.Error())
+			}
+		}
+
+		err = validateRequiredForOnline(wg.RequiredForOnline)
+		if err != nil {
+			return fmt.Errorf("wireguard %d %s", index, err.Error())
+		}
+
+		if !isValidBase64(wg.PrivateKey) {
+			return fmt.Errorf("wireguard %d private key '%s' invalid", index, wg.PrivateKey)
+		}
+
+		if wg.Port < 0 || wg.Port > 65535 {
+			return fmt.Errorf("wireguard %d port '%d' out of range", index, wg.Port)
+		}
+
+		for routeIndex, route := range wg.Routes {
+			err := validateAddressWithCIDR(route.To)
+			if err != nil {
+				return fmt.Errorf("wireguard %d route %d 'To' %s", index, routeIndex, err.Error())
+			}
+
+			err = validateAddress(route.Via)
+			if err != nil {
+				return fmt.Errorf("wireguard %d route %d 'Via' %s", index, routeIndex, err.Error())
+			}
+		}
+
+		for peerIndex, peer := range wg.Peers {
+			if !isValidBase64(peer.PublicKey) {
+				return fmt.Errorf("wireguard %d peer %d public key invalid", index, peerIndex)
+			}
+
+			if peer.PresharedKey != "" && !isValidBase64(peer.PresharedKey) {
+				return fmt.Errorf("wireguard %d peer %d preshared key invalid", index, peerIndex)
+			}
+
+			for addressIndex, address := range peer.AllowedIPs {
+				err := validateAddressWithCIDR(address)
+				if err != nil {
+					return fmt.Errorf("wireguard %d peer %d allowed IP %d %s", index, peerIndex, addressIndex, err.Error())
+				}
+			}
+
+			if peer.PersistentKeepalive < 0 || peer.PersistentKeepalive > 65535 {
+				return fmt.Errorf("wireguard %d peer %d persitent keepalive %d out of range", index, peerIndex, peer.PersistentKeepalive)
+			}
+
+			if peer.Endpoint != "" {
+				_, _, err = net.SplitHostPort(peer.Endpoint)
+				if err != nil {
+					return fmt.Errorf("wireguard %d peer %d invalid endpoint '%s': %w", index, peerIndex, peer.Endpoint, err)
+				}
 			}
 		}
 	}
@@ -278,7 +375,7 @@ func validateFirewall(rules []api.SystemNetworkFirewallRule) error {
 	for _, rule := range rules {
 		// Check the action.
 		if !slices.Contains([]string{"accept", "drop", "reject"}, rule.Action) {
-			return fmt.Errorf("unsupported action %q", rule.Protocol)
+			return fmt.Errorf("unsupported action %q", rule.Action)
 		}
 
 		// Check the protocol.
@@ -384,6 +481,28 @@ func validateHwaddr(hwaddr string, requireValidMAC bool) error {
 		hwaddrhRegex := regexp.MustCompile(`^[[:xdigit:]]{2}:[[:xdigit:]]{2}:[[:xdigit:]]{2}:[[:xdigit:]]{2}:[[:xdigit:]]{2}:[[:xdigit:]]{2}$`)
 		if !hwaddrhRegex.MatchString(hwaddr) {
 			return fmt.Errorf("invalid MAC address '%s'", hwaddr)
+		}
+	}
+
+	return nil
+}
+
+func isValidBase64(s string) bool {
+	_, err := base64.StdEncoding.DecodeString(s)
+
+	return err == nil
+}
+
+func validateEthernet(eth *api.SystemNetworkEthernet) error {
+	if eth == nil {
+		return nil
+	}
+
+	// Validate WakeOnLAN password (should be MAC formatted).
+	if eth.WakeOnLANPassword != "" {
+		err := validateHwaddr(eth.WakeOnLANPassword, true)
+		if err != nil {
+			return fmt.Errorf("bad wake-on-lan password: %w", err)
 		}
 	}
 

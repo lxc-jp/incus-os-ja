@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/lxc/incus/v6/shared/subprocess"
 	"golang.org/x/sys/unix"
@@ -30,10 +31,50 @@ type LsblkOutput struct {
 	BlockDevices []BlockDevices `json:"blockdevices"`
 }
 
+// ZpoolScrubState represents the scrub state of a pool.
+type ZpoolScrubState string
+
+const (
+	// ZpoolNone represents the empty state for a ZpoolScrubState.
+	ZpoolNone ZpoolScrubState = ""
+	// ZpoolScanning represents that the zpool scrub is in progress.
+	ZpoolScanning ZpoolScrubState = "SCANNING"
+	// ZpoolFinished represents that the zpool scrub has finished.
+	ZpoolFinished ZpoolScrubState = "FINISHED"
+)
+
+var zpoolToScrubStateMap = map[ZpoolScrubState]api.SystemStoragePoolScrubState{
+	ZpoolScanning: api.ScrubInProgress,
+	ZpoolFinished: api.ScrubFinished,
+}
+
+func zpoolScrubStateToPoolScrubState(state ZpoolScrubState) api.SystemStoragePoolScrubState {
+	mapped, ok := zpoolToScrubStateMap[state]
+	if ok {
+		return mapped
+	}
+
+	return api.ScrubUnknown
+}
+
+// ErrScrubAlreadyInProgress is returned if a scrub is requested for a pool that already has one in progress.
+var ErrScrubAlreadyInProgress = errors.New("scrub already in progress")
+
+type zpoolScanStats struct {
+	Function  string          `json:"function"`
+	State     ZpoolScrubState `json:"state"`
+	StartTime int             `json:"start_time"`
+	EndTime   int             `json:"end_time"`
+	ToExamine int             `json:"to_examine"`
+	Examined  int             `json:"examined"`
+	Errors    int             `json:"errors"`
+}
+
 type zpoolStatusPartialParse struct {
 	Pools map[string]struct {
-		State string `json:"state"`
-		Vdevs map[string]struct {
+		State     string         `json:"state"`
+		ScanStats zpoolScanStats `json:"scan_stats"`
+		Vdevs     map[string]struct {
 			Vdevs map[string]struct {
 				VdevType   string `json:"vdev_type"`
 				State      string `json:"state"`
@@ -65,6 +106,8 @@ type zfsGetPartialParse struct {
 }
 
 type smartOutput struct {
+	err error
+
 	Device struct {
 		Type string `json:"type"`
 	} `json:"device"`
@@ -85,6 +128,23 @@ type smartOutput struct {
 	SMARTStatus struct {
 		Passed bool `json:"passed"`
 	} `json:"smart_status"`
+	PowerOnTime struct {
+		Hours int `json:"hours"`
+	} `json:"power_on_time"`
+	NVMESmartHealthInformationLog struct {
+		DataUnitsRead    int `json:"data_units_read"`
+		DataUnitsWritten int `json:"data_units_written"`
+		AvailableSpare   int `json:"available_spare"`
+		PercentageUsed   int `json:"percentage_used"`
+	} `json:"nvme_smart_health_information_log"`
+	ATASmartAttributes struct {
+		Table []struct {
+			Name string `json:"name"`
+			Raw  struct {
+				Value int `json:"value"`
+			} `json:"raw"`
+		} `json:"table"`
+	} `json:"ata_smart_attributes"`
 }
 
 // GetUnderlyingDevice figures out and returns the underlying device that IncusOS is running from.
@@ -111,6 +171,8 @@ func GetUnderlyingDevice() (string, error) {
 		}
 
 		rootDev = fmt.Sprintf("%d:%d\n", major, minor)
+
+		break
 	}
 
 	if rootDev == "" {
@@ -303,7 +365,7 @@ func getZpoolMembersHelper(ctx context.Context, rawJSONContent []byte, zpoolName
 			case "raidz3-0":
 				zpoolType = "zfs-raidz3"
 			default:
-				return api.SystemStoragePool{}, errors.New("unable to determine pool type for " + zpoolName)
+				return api.SystemStoragePool{}, fmt.Errorf("got unexpected zpool type '%s' in zpool '%s'", vdevName, zpoolName)
 			}
 
 			for memberVdevName, memberVdev := range vdev.Vdevs {
@@ -390,9 +452,23 @@ func getZpoolMembersHelper(ctx context.Context, rawJSONContent []byte, zpoolName
 	slices.Sort(zpoolDevices["log_degraded"])
 	slices.Sort(zpoolDevices["cache_degraded"])
 
+	// Get the scrub status, if it exists.
+	var scrubStatus *api.SystemStoragePoolScrubStatus
+
+	if zpoolJSON.Pools[zpoolName].ScanStats.StartTime != 0 {
+		scrubStatus = &api.SystemStoragePoolScrubStatus{
+			State:     zpoolScrubStateToPoolScrubState(zpoolJSON.Pools[zpoolName].ScanStats.State),
+			StartTime: time.Unix(int64(zpoolJSON.Pools[zpoolName].ScanStats.StartTime), 0),
+			EndTime:   time.Unix(int64(zpoolJSON.Pools[zpoolName].ScanStats.EndTime), 0),
+			Progress:  calculateScrubProgress(zpoolJSON.Pools[zpoolName].ScanStats),
+			Errors:    zpoolJSON.Pools[zpoolName].ScanStats.Errors,
+		}
+	}
+
 	return api.SystemStoragePool{
 		Name:                      zpoolName,
 		State:                     zpoolJSON.Pools[zpoolName].State,
+		LastScrub:                 scrubStatus,
 		EncryptionKeyStatus:       zpoolKeyStatus,
 		Type:                      zpoolType,
 		Devices:                   zpoolDevices["devices"],
@@ -408,9 +484,31 @@ func getZpoolMembersHelper(ctx context.Context, rawJSONContent []byte, zpoolName
 	}, nil
 }
 
+// calculateScrubProgress calculates the scrub progress for a given zpool and returns it in a formatted percentage string.
+func calculateScrubProgress(stats zpoolScanStats) string {
+	// If we know the scan is finished, the progress is 100%.
+	if stats.State == ZpoolFinished {
+		return "100.00%"
+	}
+
+	// If no bytes were reported to scan, fallback to 0%.
+	if stats.ToExamine == 0 {
+		return "0.00%"
+	}
+
+	progress := (float64(stats.Examined) / float64(stats.ToExamine)) * 100
+
+	// Handle progress overflow for live pools if the state is not reported as finished.
+	if progress > 100 {
+		return "99.99%"
+	}
+
+	return fmt.Sprintf("%.2f%%", progress)
+}
+
 // GetStorageInfo returns current SMART data for each drive and the status of each local zpool.
-func GetStorageInfo(ctx context.Context) (api.SystemStorage, error) {
-	ret := api.SystemStorage{}
+func GetStorageInfo(ctx context.Context) (api.SystemStorageState, error) {
+	ret := api.SystemStorageState{}
 
 	type zpoolStatusRaw struct {
 		Pools map[string]json.RawMessage `json:"pools"`
@@ -436,13 +534,13 @@ func GetStorageInfo(ctx context.Context) (api.SystemStorage, error) {
 			return ret, err
 		}
 
-		ret.State.Pools = append(ret.State.Pools, poolConfig)
+		ret.Pools = append(ret.Pools, poolConfig)
 	}
 
 	// Get a list of all local drives.
 	// Note that while we can get the VENDOR field from lsblk, it seems to return generic values like "ATA" which isn't useful.
-	// Exclude devices with major numbers 1 (RAM disk), 2 (floppy disks), 7 (loopback), 230 (zvols)
-	output, err := subprocess.RunCommandContext(ctx, "lsblk", "-JMpdb", "-e", "1,2,7,230", "-o", "KNAME,SIZE,RM")
+	// Exclude devices with major numbers 1 (RAM disk), 2 (floppy disks), 7 (loopback), 147 (DRBD), 230 (zvols), 251 (Ceph RBD)
+	output, err := subprocess.RunCommandContext(ctx, "lsblk", "-JMpdb", "-e", "1,2,7,147,230,251", "-o", "KNAME,ID_LINK,SIZE,RM")
 	if err != nil {
 		return ret, err
 	}
@@ -461,14 +559,26 @@ func GetStorageInfo(ctx context.Context) (api.SystemStorage, error) {
 
 	// Get SMART data and populate struct for each drive.
 	for _, drive := range drives.BlockDevices {
-		// Ignore error here, since smartctl returns non-zero if the device doesn't support SMART, such as a QEMU virtual drive.
-		output, _ := subprocess.RunCommandContext(ctx, "smartctl", "-aj", drive.KName)
+		// Skip devices that don't have a link ID, such as mmcblk0boot0.
+		if drive.ID == "" {
+			continue
+		}
 
+		// Skip BMC virtual devices.
+		if IsBMC(drive) {
+			continue
+		}
+
+		// Ignore error here, since smartctl returns non-zero if the device doesn't support SMART, such as a QEMU virtual drive.
 		smart := smartOutput{}
 
-		err = json.Unmarshal([]byte(output), &smart)
-		if err != nil {
-			return ret, err
+		output, _ := subprocess.RunCommandContext(ctx, "smartctl", "-aj", drive.KName)
+		if output != "" {
+			err = json.Unmarshal([]byte(output), &smart)
+			if err != nil {
+				smart.SMARTSupport.Available = true
+				smart.err = err
+			}
 		}
 
 		// Determine if this is a remote device (NVMEoTCP, FC, etc).
@@ -532,14 +642,57 @@ func GetStorageInfo(ctx context.Context) (api.SystemStorage, error) {
 
 		// Populate SMART info if available.
 		smartStatus := new(api.SystemStorageDriveSMART)
-		if smart.SMARTSupport.Available {
+		if smart.SMARTSupport.Available { //nolint:nestif
 			smartStatus.Enabled = smart.SMARTSupport.Enabled
 			smartStatus.Passed = smart.SMARTStatus.Passed
+
+			if smart.err != nil {
+				smartStatus.Error = fmt.Sprintf("Bad SMART data from drive: %v", smart.err)
+			}
+
+			if smart.PowerOnTime.Hours > 0 {
+				smartStatus.PowerOnHours = smart.PowerOnTime.Hours
+			}
+
+			// NVME handling.
+			if smart.NVMESmartHealthInformationLog.PercentageUsed > 0 {
+				smartStatus.PercentageUsed = smart.NVMESmartHealthInformationLog.PercentageUsed
+			}
+
+			if smart.NVMESmartHealthInformationLog.DataUnitsRead > 0 {
+				smartStatus.DataUnitsRead = smart.NVMESmartHealthInformationLog.DataUnitsRead
+			}
+
+			if smart.NVMESmartHealthInformationLog.DataUnitsWritten > 0 {
+				smartStatus.DataUnitsWritten = smart.NVMESmartHealthInformationLog.DataUnitsWritten
+			}
+
+			if smart.NVMESmartHealthInformationLog.AvailableSpare > 0 {
+				smartStatus.AvailableSpare = smart.NVMESmartHealthInformationLog.AvailableSpare
+			}
+
+			// ATA handling.
+			ataAttributes := map[string]int{}
+			for _, attr := range smart.ATASmartAttributes.Table {
+				ataAttributes[attr.Name] = attr.Raw.Value
+			}
+
+			if ataAttributes["Raw_Read_Error_Rate"] > 0 {
+				smartStatus.RawReadErrorRate = ataAttributes["Raw_Read_Error_Rate"]
+			}
+
+			if ataAttributes["Seek_Error_Rate"] > 0 {
+				smartStatus.SeekErrorRate = ataAttributes["Seek_Error_Rate"]
+			}
+
+			if ataAttributes["Reallocated_Sector_Ct"] > 0 {
+				smartStatus.ReallocatedSectors = ataAttributes["Reallocated_Sector_Ct"]
+			}
 		} else {
 			smartStatus = nil
 		}
 
-		ret.State.Drives = append(ret.State.Drives, api.SystemStorageDrive{
+		ret.Drives = append(ret.Drives, api.SystemStorageDrive{
 			ID:              deviceID,
 			ModelFamily:     modelFamily,
 			ModelName:       modelName,
@@ -557,7 +710,7 @@ func GetStorageInfo(ctx context.Context) (api.SystemStorage, error) {
 
 	// Sort the list of returned drives by the device's ID. This ensures a
 	// consistent ordering, which is useful for some tests.
-	slices.SortFunc(ret.State.Drives, func(a, b api.SystemStorageDrive) int {
+	slices.SortFunc(ret.Drives, func(a, b api.SystemStorageDrive) int {
 		return strings.Compare(a.ID, b.ID)
 	})
 
@@ -664,7 +817,7 @@ func WipeDrive(ctx context.Context, drive string) error {
 		return err
 	}
 
-	for _, d := range drives.State.Drives {
+	for _, d := range drives.Drives {
 		if d.ID == drive {
 			if d.Boot {
 				return errors.New("cannot wipe boot drive")
@@ -678,4 +831,24 @@ func WipeDrive(ctx context.Context, drive string) error {
 	}
 
 	return errors.New("drive '" + drive + "' doesn't exist")
+}
+
+// IsBMC checks whether the provided block device is a BMC virtual device.
+func IsBMC(entry BlockDevices) bool {
+	if strings.HasPrefix(entry.ID, "usb-Linux_Virtual_") {
+		// Virtual BMC devices on DELL servers.
+		return true
+	}
+
+	if strings.HasPrefix(entry.ID, "usb-Cisco_") {
+		// Virtual BMC devices on Cisco servers.
+		return true
+	}
+
+	if strings.HasPrefix(entry.ID, "usb-AMI_Virtual_") {
+		// Virtual BMC devices on Asus servers.
+		return true
+	}
+
+	return false
 }

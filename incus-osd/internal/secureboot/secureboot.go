@@ -3,6 +3,7 @@ package secureboot
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
 	"debug/pe"
@@ -10,12 +11,16 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/foxboron/go-uefi/authenticode"
+	"github.com/google/go-eventlog/tcg"
 	"github.com/lxc/incus/v6/shared/subprocess"
 	"golang.org/x/sys/unix"
 
@@ -23,11 +28,33 @@ import (
 	"github.com/lxc/incus-os/incus-osd/internal/util"
 )
 
+var systemdStubGUID = [16]byte{0xf8, 0xd1, 0xc5, 0x55, 0xcd, 0x4, 0xb5, 0x46, 0x8a, 0x20, 0xe5, 0x6c, 0xbb, 0x30, 0x52, 0xd0}
+
 // Enabled checks if Secure Boot is currently enabled.
 func Enabled() (bool, error) {
 	state, err := readEFIVariable("SecureBoot")
 	if err != nil {
 		return false, err
+	}
+
+	if len(state) == 0 {
+		return false, nil
+	}
+
+	return state[0] == 1, nil
+}
+
+// InAuditMode checks if Secure Boot is running in Audit Mode. Per the spec
+// this shouldn't be possible when Secure Boot is enabled, but buggy UEFI
+// implementations can allow this.
+func InAuditMode() (bool, error) {
+	state, err := readEFIVariable("AuditMode")
+	if err != nil {
+		return false, err
+	}
+
+	if len(state) == 0 {
+		return false, nil
 	}
 
 	return state[0] == 1, nil
@@ -38,20 +65,21 @@ func Enabled() (bool, error) {
 //
 //	1: Verify the new certificate is in db and isn't in dbx.
 //	2: Replace the existing systemd-boot EFI stub with the newly-signed one.
-//	3: Compute the new PCR7 value expected on next boot.
+//	3: Compute the new PCR4 and PCR7 values expected on next boot.
 //	4: Set the new Secure Boot public key to be used by the TPM for verifying
 //	   the PCR11 policies. Since this will invalidate the current TPM state, we
 //	   must have an alternative way of authenticating the LUKS changes; by
 //	   default rely on the recovery passphrase that's automatically created on
 //	   first boot.
 func HandleSecureBootKeyChange(ctx context.Context, luksPassword string, ukiFile string, usrImageFile string) error {
-	// Pre-checks -- Verify that the TPM event log matches current TPM values.
-	eventLog, err := readTMPEventLog()
+	// Determine Secure Boot state.
+	sbEnabled, err := Enabled()
 	if err != nil {
 		return err
 	}
 
-	err = validateUntrustedTPMEventLog(eventLog)
+	// Pre-checks -- Verify that the TPM event log matches current TPM values.
+	eventLog, err := GetValidatedTPMEventLog()
 	if err != nil {
 		return err
 	}
@@ -73,7 +101,12 @@ func HandleSecureBootKeyChange(ctx context.Context, luksPassword string, ukiFile
 		return err
 	}
 
-	// Part 3 -- Compute the new PCR7 value.
+	// Part 3 -- Compute the new PCR4 and PCR7 values.
+	newPCR4, err := computeNewPCR4Value(eventLog, ukiFile)
+	if err != nil {
+		return err
+	}
+
 	newPCR7, err := computeNewPCR7Value(eventLog)
 	if err != nil {
 		return err
@@ -85,7 +118,15 @@ func HandleSecureBootKeyChange(ctx context.Context, luksPassword string, ukiFile
 		return err
 	}
 
+	newPCR4String := hex.EncodeToString(newPCR4)
 	newPCR7String := hex.EncodeToString(newPCR7)
+
+	pcrBindingArg := "--tpm2-pcrs=7:sha256=" + newPCR7String
+
+	// When Secure Boot is disabled, we also bind to PCR4.
+	if !sbEnabled {
+		pcrBindingArg = "--tpm2-pcrs=4:sha256=" + newPCR4String + "+7:sha256=" + newPCR7String
+	}
 
 	luksVolumes, err := util.GetLUKSVolumePartitions()
 	if err != nil {
@@ -93,8 +134,68 @@ func HandleSecureBootKeyChange(ctx context.Context, luksPassword string, ukiFile
 	}
 
 	for _, volume := range luksVolumes {
-		_, _, err := subprocess.RunCommandSplit(ctx, append(os.Environ(), "PASSWORD="+luksPassword), nil, "systemd-cryptenroll", "--tpm2-device=auto", "--wipe-slot=tpm2", "--tpm2-pcrlock=", "--tpm2-pcrs=7:sha256="+newPCR7String, volume)
+		_, _, err := subprocess.RunCommandSplit(ctx, append(os.Environ(), "PASSWORD="+luksPassword), nil, "systemd-cryptenroll", "--tpm2-device=auto", "--wipe-slot=tpm2", "--tpm2-pcrlock=", pcrBindingArg, volume)
 		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// UpdatePCR4Binding updates all LUKS encryption bindings to use the newly computed PCR4
+// value in addition to PCR7 when the UKI is updated.
+//
+// Generally, this code should only be used when IncusOS is running with Secure Boot disabled
+// and we rely on the additional binding of PCR4 in this degraded security state. Because PCR4
+// is different for each UKI, this forces the use of a recovery passphrase if booting an older
+// version of IncusOS, so use of PCR4 is limited just to instances with Secure Boot disabled.
+func UpdatePCR4Binding(ctx context.Context, ukiFile string) error {
+	// Verify the UKI file exists.
+	_, err := os.Stat(ukiFile)
+	if err != nil {
+		return err
+	}
+
+	// Get and verify the current PCR states.
+	eventLog, err := GetValidatedTPMEventLog()
+	if err != nil {
+		return err
+	}
+
+	// Compute new PCR4 value for the updated UKI.
+	newPCR4, err := computeNewPCR4Value(eventLog, ukiFile)
+	if err != nil {
+		return err
+	}
+
+	// PCR7 won't change when the UKI is updated.
+	pcr7, err := ReadPCR("7")
+	if err != nil {
+		return err
+	}
+
+	// Update the LUKS-encrypted volumes to use the new PCR4 value.
+	newPCR4String := hex.EncodeToString(newPCR4)
+	pcr7String := hex.EncodeToString(pcr7)
+
+	luksVolumes, err := util.GetLUKSVolumePartitions()
+	if err != nil {
+		return err
+	}
+
+	for _, volume := range luksVolumes {
+		_, err = subprocess.RunCommandContext(ctx, "systemd-cryptenroll", "--unlock-tpm2-device=auto", "--tpm2-device=auto", "--wipe-slot=tpm2", "--tpm2-pcrlock=", "--tpm2-pcrs=4:sha256="+newPCR4String+"+7:sha256="+pcr7String, volume)
+		if err != nil {
+			// Binding to PCR4 is a bit fragile. This is because it will change if the "normal" boot order changes. (For example,
+			// entering the system BIOS, then exiting and booting into IncusOS will produce a different PCR4 hash than just booting
+			// IncusOS.) We have no way to preemptively determine if this has happened, though, since the TPM event log will contain
+			// a different set of PCR4 events but still validate correctly. systemd-cryptenroll returns an ugly error, so detect if
+			// that's the case and return something more informative to the user.
+			if strings.Contains(err.Error(), "No TPM2 metadata matching the current system state found in LUKS2 header") {
+				return errors.New("unable to update PCR4+7 encryption bindings; if the system was booted with a recovery passphrase, please re-bind the TPM and try again")
+			}
+
 			return err
 		}
 	}
@@ -105,19 +206,20 @@ func HandleSecureBootKeyChange(ctx context.Context, luksPassword string, ukiFile
 // UKIHasDifferentSecureBootCertificate returns a boolean indicating if a provided UKI is signed
 // with a different Secure Boot certificate than the one that signed the currently running system.
 func UKIHasDifferentSecureBootCertificate(ukiFile string) (bool, error) {
-	currentCert := make([]byte, 451)
-
 	file, err := os.Open("/run/systemd/tpm2-pcr-public-key.pem")
 	if err != nil {
 		return false, err
 	}
 	defer file.Close()
 
-	count, err := file.Read(currentCert)
+	buf, err := io.ReadAll(file)
 	if err != nil {
 		return false, err
-	} else if count != 451 {
-		return false, fmt.Errorf("only read %d of 451 bytes while getting current public key from /run/systemd/tpm2-pcr-public-key.pem", count)
+	}
+
+	currentCert, err := getPEMBytes(buf)
+	if err != nil {
+		return false, err
 	}
 
 	newCert, err := getPublicKeyFromUKI(ukiFile)
@@ -152,13 +254,182 @@ func ListCertificates() []api.SystemSecuritySecureBootCertificate {
 	return ret
 }
 
+// ValidatePEBinaries checks that each PE binary measured in the TPM's PCR4 event log
+// still matches when read back from disk and that it is signed with a trusted IncusOS
+// certificate.
+func ValidatePEBinaries() error { //nolint:revive
+	// Get and verify the current PCR states.
+	eventLog, err := GetValidatedTPMEventLog()
+	if err != nil {
+		return err
+	}
+
+	// Get a list of trusted certificates.
+	trustedCerts, err := GetCertificatesFromVar("db")
+	if err != nil {
+		return err
+	}
+
+	// Get expected file paths for the systemd-boot PEs.
+	efiFiles, err := getArchEFIFiles()
+	if err != nil {
+		return err
+	}
+
+	// As we begin checking PE binaries, set two flags to indicate we've passed the
+	// EFI Action "Calling EFI Application" checkpoint and that we were indeed able
+	// to validate at least one PE binary from the event log.
+	beginCheckingPEBinaries := false
+	atLeastOnePEBinaryVerified := false
+
+	// To assist with debugging various UEFI issues, build a string containing basic
+	// information about each PCR4 event to display in case of an error.
+	var b strings.Builder
+
+	// Validate each PE binary referenced in the PCR4 event log.
+outer:
+	for _, e := range eventLog {
+		// We only care about PCR4.
+		if e.Index == 4 { //nolint:nestif
+			_, _ = b.WriteString("PCR4 Event: " + e.Type.String() + "\n")
+
+			switch e.Type { //nolint:exhaustive
+			case tcg.EFIAction:
+				_, _ = b.WriteString("  " + hex.EncodeToString(e.ReplayedDigest()) + "\n")
+
+				// Check if this is the "Calling EFI Application" checkpoint.
+				s := sha256.Sum256([]byte(tcg.CallingEFIApplication))
+				if bytes.Equal(e.ReplayedDigest(), s[:]) {
+					beginCheckingPEBinaries = true
+				}
+			case tcg.EFIBootServicesApplication:
+				r := bytes.NewReader(e.Data)
+
+				efiImageLoad, err := tcg.ParseEFIImageLoad(r)
+				if err != nil {
+					return err
+				}
+
+				devPaths, err := efiImageLoad.DevicePath()
+				if err != nil {
+					return err
+				}
+
+				// Iterate through the device paths for this event, until we get to the actual PE binary.
+				for _, dev := range devPaths {
+					// EFI Vendor-defined data
+					if dev.Type == tcg.MediaDevice && dev.Subtype == 3 {
+						// When SeucreBoot is disabled, systemd makes an additional PCR4 measurement of the .linux section
+						// from the UKI.
+						if bytes.Equal(systemdStubGUID[:], dev.Data) {
+							ukiFile, err := getUKIImage()
+							if err != nil {
+								return err
+							}
+
+							_, _ = b.WriteString("  .linux section of " + ukiFile + "\n")
+
+							buf, err := computeVmlinuzAuthenticodeHash(ukiFile)
+							if err != nil {
+								return err
+							}
+
+							// Verify that the authenticode from disk matches the TPM event log.
+							if !bytes.Equal(buf, e.ReplayedDigest()) {
+								return fmt.Errorf("authenticode mismatch for .linux section in file '%s'", ukiFile)
+							}
+
+							break
+						}
+					}
+
+					// EFI File Path
+					if dev.Type == tcg.MediaDevice && dev.Subtype == 4 {
+						peName, err := util.UTF16ToString(dev.Data)
+						if err != nil {
+							return err
+						}
+
+						_, _ = b.WriteString("  " + peName + "\n")
+
+						// Convert the EFI-style path to the real path.
+						peName = "/boot" + strings.ReplaceAll(peName, "\\", "/")
+
+						// Workaround for buggy UEFI implementations, typically seen on consumer-grade laptops.
+						// These systems don't properly measure the required EFIAction when booting, which was
+						// causing us to never check the expected PE binaries for IncusOS and failing to boot.
+						// To address this, when we see the systemd-boot PE, also toggle that we should begin
+						// verifying PE binaries.
+						//
+						// Additionally, use strings.EqualFold() to perform case-insensitive file path comparisons
+						// because some UEFI implementations capitalize the entire path.
+						if strings.EqualFold(peName, efiFiles["systemdEFI"]) || strings.EqualFold(peName, efiFiles["bootEFI"]) {
+							beginCheckingPEBinaries = true
+						}
+
+						// Skip checking any early-boot PE binaries, such as some seen from
+						// enterprise BMCs.
+						if !beginCheckingPEBinaries {
+							continue outer
+						}
+
+						// Open the PE binary from disk and compute its authenticode.
+						peFile, err := os.Open(peName) //nolint:gosec
+						if err != nil {
+							return err
+						}
+						defer peFile.Close() //nolint:revive
+
+						authenticodeContents, err := authenticode.Parse(peFile)
+						if err != nil {
+							return err
+						}
+
+						// First check: authenticode from disk matches the TPM event log.
+						if !bytes.Equal(authenticodeContents.Hash(crypto.SHA256), e.ReplayedDigest()) {
+							return errors.New("authenticode mismatch for PE binary " + peName)
+						}
+
+						peProperlySigned := false
+
+						// Second check: PE is properly signed by a trusted certificate.
+						for _, cert := range trustedCerts {
+							_, err := authenticodeContents.Verify(cert)
+							if err == nil {
+								peProperlySigned = true
+
+								break
+							}
+						}
+
+						if !peProperlySigned {
+							return errors.New("PE binary " + peName + " not signed by any trusted certificate")
+						}
+
+						atLeastOnePEBinaryVerified = true
+
+						break
+					}
+				}
+			default:
+			}
+		}
+	}
+
+	if !atLeastOnePEBinaryVerified {
+		return errors.New("failed to verify any PE binary from TPM event log\n" + b.String())
+	}
+
+	return nil
+}
+
 // validatePKICertificate makes sure the certificate obtained from a potential new UKI
 // is listed in the Secure Boot db, isn't in dbx, and is valid based on the current
 // system time. (Secure Boot can't rely on time being correct; once up and running
 // that's a reasonable assumption, but nothing security critical depends on this. Mostly
 // it's just another easy check to help ensure we only install valid UKIs.)
 func validatePKICertificate(cert []byte) error {
-	certEqualityFunc := func(c x509.Certificate) bool {
+	certEqualityFunc := func(c *x509.Certificate) bool {
 		publicKeyDer, err := x509.MarshalPKIXPublicKey(c.PublicKey)
 		if err != nil {
 			return false
@@ -217,12 +488,23 @@ func getPublicKeyFromUKI(ukiFile string) ([]byte, error) {
 	pcrpkeyData, err := pcrpkeySection.Data()
 	if err != nil {
 		return nil, err
-	} else if len(pcrpkeyData) != 512 {
-		return nil, fmt.Errorf("only read %d of 512 bytes while getting UKI public key from '%s'", len(pcrpkeyData), ukiFile)
+	} else if len(pcrpkeyData) != int(pcrpkeySection.Size) {
+		return nil, fmt.Errorf("only read %d of %d bytes while getting UKI public key from '%s'", len(pcrpkeyData), pcrpkeySection.Size, ukiFile)
 	}
 
 	// Trim null bytes from returned buffer.
-	return pcrpkeyData[:451], nil
+	return getPEMBytes(pcrpkeyData)
+}
+
+// getPEMBytes attempts to decode a PEM-encoded public key from the supplied buffer
+// and returns its bytes.
+func getPEMBytes(buf []byte) ([]byte, error) {
+	cert, _ := pem.Decode(buf)
+	if cert == nil || cert.Type != "PUBLIC KEY" {
+		return nil, errors.New("unable to parse PEM public key")
+	}
+
+	return pem.EncodeToMemory(cert), nil
 }
 
 // updateEFIBootStub synchronizes the systemd-boot EFI stub when the Secure Boot signing key is rotated.

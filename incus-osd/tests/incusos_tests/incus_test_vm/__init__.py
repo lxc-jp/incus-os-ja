@@ -12,10 +12,11 @@ class IncusOSException(Exception):
     pass
 
 class IncusTestVM:
-    def __init__(self, vm_name_base, install_image, root_size="50GiB"):
+    def __init__(self, vm_name_base, install_image, root_size="50GiB", readonly_install_image="false"):
         self.vm_name = vm_name_base + "-" + util._get_random_string()
         self.root_size = root_size
         self.install_image = install_image
+        self.readonly_install_image = readonly_install_image
         self.is_raw_image = self.install_image.endswith(".img")
         self.isos = []
 
@@ -29,7 +30,7 @@ class IncusTestVM:
         self.AddDevice("vtpm", "tpm")
 
         if self.is_raw_image:
-            self.AddDevice("boot-media", "disk", "source="+self.install_image, "io.bus=usb", "boot.priority=10", "readonly=false")
+            self.AddDevice("boot-media", "disk", "source="+self.install_image, "io.bus=usb", "boot.priority=10", "readonly=" + self.readonly_install_image)
         else:
             self.AddDevice("boot-media", "disk", "pool=default", "source="+self.vm_name+".iso", "boot.priority=10")
 
@@ -73,14 +74,17 @@ class IncusTestVM:
         subprocess.run(["incus", "config", "device", "set", self.vm_name, device, prop], capture_output=True, check=True)
 
     def StartVM(self, timeout=60):
-        """Start the VM and wait up to 15 seconds by default for the command to return."""
+        """Start the VM and wait up to 60 seconds by default for the command to return."""
 
         subprocess.run(["incus", "start", self.vm_name], capture_output=True, check=True, timeout=timeout)
 
-    def StopVM(self, timeout=120):
-        """Stop the VM and wait up to 60 seconds by default for the command to return."""
+    def StopVM(self, timeout=120, force=False):
+        """Stop the VM and wait up to 120 seconds by default for the command to return."""
 
-        subprocess.run(["incus", "stop", self.vm_name], capture_output=True, check=True, timeout=timeout)
+        if force:
+            subprocess.run(["incus", "stop", "-f", self.vm_name], capture_output=True, check=True, timeout=timeout)
+        else:
+            subprocess.run(["incus", "stop", self.vm_name], capture_output=True, check=True, timeout=timeout)
 
     def WaitSystemReady(self, incusos_version, source="/dev/sdb", target="/dev/sda", application="incus", remove_devices=[]):
         """Wait for the system install to complete, the given application to be configured and the system become ready for use."""

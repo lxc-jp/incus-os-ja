@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -20,8 +19,10 @@ import (
 	"github.com/lxc/incus/v6/shared/subprocess"
 	"golang.org/x/sys/unix"
 
+	"github.com/lxc/incus-os/incus-osd/api"
 	apiupdate "github.com/lxc/incus-os/incus-osd/api/images"
 	"github.com/lxc/incus-os/incus-osd/internal/providers"
+	"github.com/lxc/incus-os/incus-osd/internal/seed"
 	"github.com/lxc/incus-os/incus-osd/internal/state"
 	"github.com/lxc/incus-os/incus-osd/internal/systemd"
 )
@@ -65,20 +66,55 @@ func CheckRunRecovery(ctx context.Context, s *state.State) error {
 	}
 	defer unix.Unmount(mountDir, 0)
 
+	// Workaround for recovery running on first boot when no provider has been set yet.
+	if s.System.Provider.Config.Name == "" {
+		s.System.Provider.Config.Name = "images"
+
+		defer func() { s.System.Provider.Config.Name = "" }()
+	}
+
+	// Get the expected CA certificate to validate the update metadata.
+	updateCA, err := providers.GetUpdateCACert()
+	if err != nil {
+		return err
+	}
+
 	// Run the hotfix script, if any.
-	err = runHotfix(ctx, mountDir)
+	err = runHotfix(ctx, updateCA, mountDir)
 	if err != nil {
 		return err
 	}
 
 	// Apply the update(s), if any.
-	apps := []string{}
 
-	for app := range s.Applications {
-		apps = append(apps, app)
+	// Similar to normal startup logic, if no applications are installed default
+	// to selecting incus.
+	apps := []string{"incus"}
+
+	if len(s.Applications) == 0 {
+		// Assume first start of the daemon.
+		appSeed, err := seed.GetApplications(ctx)
+		if err != nil && !seed.IsMissing(err) {
+			return err
+		}
+
+		if appSeed != nil {
+			apps = make([]string, 0, len(appSeed.Applications))
+
+			for _, app := range appSeed.Applications {
+				apps = append(apps, app.Name)
+			}
+		}
+	} else {
+		// We have an existing application list.
+		apps = make([]string, 0, len(s.Applications))
+
+		for name := range s.Applications {
+			apps = append(apps, name)
+		}
 	}
 
-	err = applyUpdate(ctx, s, mountDir, apps, s.System.Security.Config.EncryptionRecoveryKeys[0])
+	err = applyUpdate(ctx, s, updateCA, mountDir, apps, s.System.Security.Config.EncryptionRecoveryKeys[0])
 	if err != nil {
 		return err
 	}
@@ -88,7 +124,7 @@ func CheckRunRecovery(ctx context.Context, s *state.State) error {
 	return nil
 }
 
-func runHotfix(ctx context.Context, mountDir string) error {
+func runHotfix(ctx context.Context, updateCA string, mountDir string) error {
 	// Check if hotfix.sh.sig exists.
 	_, err := os.Stat(filepath.Join(mountDir, "hotfix.sh.sig"))
 	if err != nil {
@@ -105,7 +141,7 @@ func runHotfix(ctx context.Context, mountDir string) error {
 
 	defer os.Remove(rootCA.Name())
 
-	_, err = fmt.Fprintf(rootCA, "%s", providers.LXCUpdateCA)
+	_, err = rootCA.WriteString(updateCA)
 	if err != nil {
 		return err
 	}
@@ -149,7 +185,7 @@ func runHotfix(ctx context.Context, mountDir string) error {
 	return err
 }
 
-func applyUpdate(ctx context.Context, s *state.State, mountDir string, installedApplications []string, luksPassword string) error {
+func applyUpdate(ctx context.Context, s *state.State, updateCA string, mountDir string, installedApplications []string, luksPassword string) error {
 	updateDir := filepath.Join(mountDir, "update")
 
 	// Check if update.sjson exists.
@@ -174,7 +210,7 @@ func applyUpdate(ctx context.Context, s *state.State, mountDir string, installed
 
 	defer os.Remove(rootCA.Name())
 
-	_, err = fmt.Fprintf(rootCA, providers.LXCUpdateCA)
+	_, err = rootCA.WriteString(updateCA)
 	if err != nil {
 		return err
 	}
@@ -197,6 +233,11 @@ func applyUpdate(ctx context.Context, s *state.State, mountDir string, installed
 
 	if len(update.Files) == 0 {
 		return errors.New("no files in update")
+	}
+
+	// Refuse to apply any updates that are older than the currently running versions.
+	if providers.DatetimeComparison(s.OS.RunningRelease, update.Version) {
+		return errors.New("refusing to apply update version (" + update.Version + ") that is older than the current running version")
 	}
 
 	for _, dir := range []string{systemd.SystemExtensionsPath, systemd.SystemUpdatesPath} {
@@ -227,9 +268,22 @@ func applyUpdate(ctx context.Context, s *state.State, mountDir string, installed
 			continue
 		}
 
-		// Don't process any applications that are not already installed.
+		// Don't bother with an OS update if already on the same version.
+		if s.OS.RunningRelease == update.Version && file.Type != apiupdate.UpdateFileTypeApplication {
+			continue
+		}
+
 		if file.Type == apiupdate.UpdateFileTypeApplication {
-			if !slices.Contains(installedApplications, filepath.Base(strings.TrimSuffix(file.Filename, ".raw.gz"))) {
+			appName := filepath.Base(strings.TrimSuffix(file.Filename, ".raw.gz"))
+
+			// Don't process any applications that are not meant to be installed.
+			if !slices.Contains(installedApplications, appName) {
+				continue
+			}
+
+			// Don't bother with an app update if already on the same version.
+			_, ok := s.Applications[appName]
+			if ok && s.OS.RunningRelease == update.Version && file.Type != apiupdate.UpdateFileTypeApplication {
 				continue
 			}
 		}
@@ -248,20 +302,42 @@ func applyUpdate(ctx context.Context, s *state.State, mountDir string, installed
 		return err
 	}
 
-	// Apply the OS update.
-	slog.InfoContext(ctx, "Applying OS update(s)")
-
-	err = systemd.ApplySystemUpdate(ctx, luksPassword, update.Version, false)
-	if err != nil {
-		return err
+	// Ensure that each application installed/updated as part of the recovery
+	// action is properly recorded in the state.
+	for _, appName := range installedApplications {
+		app, ok := s.Applications[appName]
+		if !ok {
+			// Add the application to the state, then let normal startup
+			// logic handle starting and initializing after the recovery
+			// actions are complete.
+			s.Applications[appName] = api.Application{
+				State: api.ApplicationState{
+					Initialized: false,
+					Version:     update.Version,
+				},
+			}
+		} else {
+			// Update the existing application's version.
+			app.State.Version = update.Version
+			s.Applications[appName] = app
+		}
 	}
 
-	// Record the newly installed OS version.
-	s.OS.NextRelease = update.Version
-	s.System.Update.State.NeedsReboot = true
-	_ = s.Save()
+	// Apply the OS update.
+	if s.OS.RunningRelease != update.Version {
+		slog.InfoContext(ctx, "Applying OS update(s)")
 
-	return nil
+		err = systemd.ApplySystemUpdate(ctx, luksPassword, update.Version, false)
+		if err != nil {
+			return err
+		}
+
+		// Record the newly installed OS version.
+		s.OS.NextRelease = update.Version
+		s.System.Update.State.NeedsReboot = s.OS.RunningRelease != s.OS.NextRelease
+	}
+
+	return s.Save()
 }
 
 func verifyAndDecompressFile(updateDir string, file apiupdate.UpdateFile) error {

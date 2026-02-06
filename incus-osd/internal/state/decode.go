@@ -13,6 +13,8 @@ var errUnrecognizedConfigField = errors.New("unrecognized configuration field")
 // Decode reconstitutes a given state. Optionally, if provided, a list of upgrade functions will be
 // applied before decoding the state.
 func Decode(b []byte, upgradeFuncs UpgradeFuncs, s *State) error {
+	upgraded := false
+
 	lines := strings.Split(string(b), "\n")
 
 	// Check if we need to run any update logic.
@@ -45,6 +47,9 @@ func Decode(b []byte, upgradeFuncs UpgradeFuncs, s *State) error {
 
 				// Increment the state's version number.
 				s.StateVersion = i + 1
+
+				// Record the upgrade.
+				upgraded = true
 			}
 		}
 	}
@@ -69,6 +74,14 @@ func Decode(b []byte, upgradeFuncs UpgradeFuncs, s *State) error {
 			// Collect a list of any unrecognized configuration fields. Typically this shouldn't
 			// happen, but it may if booting into the recovery OS image after a state version upgrade.
 			s.UnrecognizedFields = append(s.UnrecognizedFields, parts[0])
+		}
+	}
+
+	// If we applied an upgrade, make sure to save the updated state.
+	if upgraded && s.path != "" {
+		err := s.Save()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -107,7 +120,9 @@ func decodeHelper(v reflect.Value, keys []string, value string) error {
 				field.Set(reflect.MakeMap(field.Type()))
 			}
 
-			mapField := field.MapIndex(reflect.ValueOf(parts[1]))
+			decodedMapKey := strings.ReplaceAll(parts[1], "__DOT__", ".")
+
+			mapField := field.MapIndex(reflect.ValueOf(decodedMapKey))
 			if !mapField.IsValid() {
 				mapField = reflect.New(field.Type().Elem()).Elem()
 			} else {
@@ -121,7 +136,7 @@ func decodeHelper(v reflect.Value, keys []string, value string) error {
 				return err
 			}
 
-			field.SetMapIndex(reflect.ValueOf(parts[1]), mapField)
+			field.SetMapIndex(reflect.ValueOf(decodedMapKey), mapField)
 
 			return nil
 		case reflect.Pointer:

@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -19,24 +20,68 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-eventlog/tcg"
 	"github.com/lxc/incus/v6/shared/subprocess"
 
+	incusoscerts "github.com/lxc/incus-os/incus-osd/certs"
 	"github.com/lxc/incus-os/incus-osd/internal/util"
 )
 
 // GetCertificatesFromVar returns a list of certificates currently in a given EFI variable.
-func GetCertificatesFromVar(varName string) ([]x509.Certificate, error) {
-	val, err := readEFIVariable(varName)
+func GetCertificatesFromVar(varName string) ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+
+	// Determine Secure Boot state.
+	sbEnabled, err := Enabled()
 	if err != nil {
 		return nil, err
 	}
 
-	parsedVal := tcg.UEFIVariableData{
-		VariableData: val,
-	}
+	if sbEnabled {
+		// In normal operation, Secure Boot will be enabled and we can
+		// directly fetch certificates from a trusted EFI variable.
+		val, err := readEFIVariable(varName)
+		if err != nil {
+			return nil, err
+		}
 
-	certs, _, err := parsedVal.SignatureData()
+		certList, err := parseEfiSignatureList(val)
+		if err != nil {
+			return nil, err
+		}
+
+		// Check for and report if any certificate failed to parse.
+		for i, certInfo := range certList {
+			if certInfo.err != nil {
+				slog.Warn(fmt.Sprintf("Failed to parse Secure Boot variable '%s' certificate at index %d: %s", varName, i, certInfo.err.Error()))
+
+				continue
+			}
+
+			certs = append(certs, certInfo.cert)
+		}
+	} else {
+		// When Secure Boot is disabled, rely on any certificates baked into the IncusOS daemon.
+		// Since the executable is part of the usr-verity image, it is read-only and the verity
+		// image has been verified both during install/upgrade as well as boot-time checks against
+		// the TPM event log. Therefore it should to be relatively safe to trust the contents.
+		embeddedCerts, err := incusoscerts.GetEmbeddedCertificates()
+		if err != nil {
+			return nil, err
+		}
+
+		switch varName {
+		case "PK":
+			certs = []*x509.Certificate{embeddedCerts.SecureBootCertificates.PK}
+		case "KEK":
+			certs = embeddedCerts.SecureBootCertificates.KEK
+		case "db":
+			certs = embeddedCerts.SecureBootCertificates.DB
+		case "dbx":
+			certs = embeddedCerts.SecureBootCertificates.DBX
+		default:
+			return nil, errors.New("unable to get SecureBoot certificates from daemon for variable " + varName)
+		}
+	}
 
 	// Some consumer-grade manufacturers ship invalid Secure Boot certificates. Unfortunately, sometimes
 	// they are required for hardware such as storage or video cards to work. Since they are already in
@@ -56,7 +101,7 @@ func GetCertificatesFromVar(varName string) ([]x509.Certificate, error) {
 		}
 	}
 
-	return certs, err
+	return certs, nil
 }
 
 // UpdateSecureBootCerts takes a given tar archive and applies any SecureBoot KEK, db, or dbx
@@ -65,6 +110,16 @@ func UpdateSecureBootCerts(ctx context.Context, tarArchive string) (bool, error)
 	kekUpdates := make(map[string][]byte)
 	dbUpdates := make(map[string][]byte)
 	dbxUpdates := make(map[string][]byte)
+
+	// Determine Secure Boot state.
+	sbEnabled, err := Enabled()
+	if err != nil {
+		return false, err
+	}
+
+	if !sbEnabled {
+		return false, errors.New("Secure Boot is disabled, refusing to attempt a certificate update") //nolint:staticcheck
+	}
 
 	// #nosec G304
 	archive, err := os.Open(tarArchive)
@@ -159,7 +214,7 @@ func applySecureBootUpdates(ctx context.Context, varName string, newCerts map[st
 			return false, err
 		}
 
-		if slices.ContainsFunc(existingCerts, func(c x509.Certificate) bool {
+		if slices.ContainsFunc(existingCerts, func(c *x509.Certificate) bool {
 			cFingerprint := sha256.Sum256(c.Raw)
 
 			return bytes.Equal(certFingerprintBytes, cFingerprint[:])
@@ -210,6 +265,9 @@ func applySecureBootUpdates(ctx context.Context, varName string, newCerts map[st
 // appendEFIVarUpdate takes a pre-signed (.auth) EFI variable update, appends it
 // to the current EFI value, and then updates the expected PCR7 value used to
 // decrypt the root file system and swap at boot.
+//
+// NOTE: This function should never be called if Secure Boot is disabled, so the encryption
+// binding logic doesn't include PCR4.
 func appendEFIVarUpdate(ctx context.Context, efiUpdateFile string, varName string) error {
 	// Verify the file exists.
 	_, err := os.Stat(efiUpdateFile)
@@ -227,12 +285,7 @@ func appendEFIVarUpdate(ctx context.Context, efiUpdateFile string, varName strin
 	}
 
 	// Get and verify the current PCR7 state.
-	eventLog, err := readTMPEventLog()
-	if err != nil {
-		return err
-	}
-
-	err = validateUntrustedTPMEventLog(eventLog)
+	eventLog, err := GetValidatedTPMEventLog()
 	if err != nil {
 		return err
 	}
@@ -299,34 +352,31 @@ func checkDbxUpdateWouldBrickUKI(dbxFilePath string) error {
 	}
 	defer dbxFile.Close()
 
-	s, err := dbxFile.Stat()
+	buf, err := io.ReadAll(dbxFile)
 	if err != nil {
 		return err
 	}
 
-	// .auth files have a timestamp and AuthInfo header before the .esl content. For our use, skip 1287 bytes
-	// into the .auth file to get actual certificate data.
-	buf := make([]byte, s.Size()-1287)
+	// .auth files have a EFI_VARIABLE_AUTHENTICATION_2 header before the EFI signature list.
+	// The first 16 bytes are EFI_TIME, followed by WIN_CERTIFICATE. The first four bytes of
+	// WIN_CERTIFICATE are the total size of the header including the PKCS7 certificate data.
+	// So the proper offset to the start of the EFI signature list is 16 + WIN_CERTIFICATE->dwLength.
 
-	readBytes, err := dbxFile.ReadAt(buf, 1287)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return err
-	} else if readBytes != len(buf) {
-		return fmt.Errorf("only read %d of %d expected bytes from EFI variable update '%s'", readBytes, len(buf), dbxFilePath)
-	}
+	headerSize := binary.LittleEndian.Uint32(buf[16:20])
+	offset := 16 + headerSize
 
-	efiVar := tcg.UEFIVariableData{
-		VariableData: buf,
-	}
-
-	certs, _, err := efiVar.SignatureData()
+	certList, err := parseEfiSignatureList(buf[offset:])
 	if err != nil {
 		return err
-	} else if len(certs) != 1 {
-		return fmt.Errorf("expected exactly one certificate in dbx update, got %d", len(certs))
+	} else if len(certList) != 1 {
+		return fmt.Errorf("expected exactly one certificate in dbx update, got %d", len(certList))
 	}
 
-	publicKeyDer, err := x509.MarshalPKIXPublicKey(certs[0].PublicKey)
+	if certList[0].err != nil {
+		return errors.New("Failed to parse dbx certificate: " + certList[0].err.Error())
+	}
+
+	publicKeyDer, err := x509.MarshalPKIXPublicKey(certList[0].cert.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -417,6 +467,8 @@ func efiVariableToFilename(variableName string) (string, error) {
 		return "/sys/firmware/efi/efivars/db-d719b2cb-3d3a-4596-a3bc-dad00e67656f", nil
 	case "dbx":
 		return "/sys/firmware/efi/efivars/dbx-d719b2cb-3d3a-4596-a3bc-dad00e67656f", nil
+	case "LoaderEntrySelected":
+		return "/sys/firmware/efi/efivars/LoaderEntrySelected-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f", nil
 	default:
 		return "", fmt.Errorf("unsupported EFI variable '%s'", variableName)
 	}

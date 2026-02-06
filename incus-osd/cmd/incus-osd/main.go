@@ -20,6 +20,7 @@ import (
 	"github.com/lxc/incus/v6/shared/subprocess"
 	"golang.org/x/sys/unix"
 
+	"github.com/lxc/incus-os/incus-osd/certs"
 	"github.com/lxc/incus-os/incus-osd/internal/applications"
 	"github.com/lxc/incus-os/incus-osd/internal/install"
 	"github.com/lxc/incus-os/incus-osd/internal/keyring"
@@ -34,6 +35,7 @@ import (
 	"github.com/lxc/incus-os/incus-osd/internal/storage"
 	"github.com/lxc/incus-os/incus-osd/internal/systemd"
 	"github.com/lxc/incus-os/incus-osd/internal/tui"
+	"github.com/lxc/incus-os/incus-osd/internal/util"
 	"github.com/lxc/incus-os/incus-osd/internal/zfs"
 )
 
@@ -72,6 +74,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Ensure custom CA certificates are set, if any.
+	if len(s.System.Security.Config.CustomCACerts) > 0 {
+		err := util.UpdateSystemCustomCACerts(s.System.Security.Config.CustomCACerts)
+		if err != nil {
+			tui.EarlyError("unable to configure custom CA certificates: " + err.Error())
+			os.Exit(1)
+		}
+	}
+
 	// Get the OS name and version from /lib/os-release.
 	osName, osRelease, err := systemd.GetCurrentRelease(ctx)
 	if err != nil {
@@ -82,14 +93,52 @@ func main() {
 	s.OS.Name = osName
 	s.OS.RunningRelease = osRelease
 
+	// Record if the system is relying on a swtpm-backed TPM.
+	s.UsingSWTPM = secureboot.GetSWTPMInUse()
+	if s.UsingSWTPM {
+		err := secureboot.BlowTrustedFuse()
+		if err != nil {
+			tui.EarlyError("unable to blow security fuse: " + err.Error())
+			os.Exit(1)
+		}
+	}
+
+	// Record if the system has booted with Secure Boot disabled.
+	sbEnabled, err := secureboot.Enabled()
+	if err != nil {
+		tui.EarlyError("unable to check Secure Boot state: " + err.Error())
+		os.Exit(1)
+	}
+
+	s.SecureBootDisabled = !sbEnabled
+
+	if s.SecureBootDisabled {
+		err := secureboot.BlowTrustedFuse()
+		if err != nil {
+			tui.EarlyError("unable to blow security fuse: " + err.Error())
+			os.Exit(1)
+		}
+	} else {
+		inAuditMode, err := secureboot.InAuditMode()
+		if err != nil {
+			tui.EarlyError("unable to check Secure Boot Audit Mode: " + err.Error())
+			os.Exit(1)
+		}
+
+		if inAuditMode {
+			tui.EarlyError("unable to run while Secure Boot is in Audit Mode")
+			os.Exit(1)
+		}
+	}
+
 	// Perform the install check here, so we don't render the TUI footer during install.
 	s.ShouldPerformInstall = install.ShouldPerformInstall()
 
-	// If this is the system's first boot, set the timezone.
-	if !s.ShouldPerformInstall && s.System.Network.Config == nil {
-		err := setTimezone(ctx)
+	// Perform first-boot actions, if needed.
+	if !s.OS.SuccessfulBoot && !s.ShouldPerformInstall && s.System.Network.Config == nil {
+		err := firstBootActions(ctx, s)
 		if err != nil {
-			tui.EarlyError("unable to set timezone: " + err.Error())
+			tui.EarlyError("unable to perform first boot actions: " + err.Error())
 			os.Exit(1)
 		}
 	}
@@ -128,9 +177,23 @@ func main() {
 	}
 }
 
+func firstBootActions(ctx context.Context, s *state.State) error {
+	// If Secure Boot is disabled, on first boot update the encryption bindings to
+	// use both PCRs 4 and 7.
+	if s.SecureBootDisabled {
+		err := secureboot.UpdatePCR4Binding(ctx, fmt.Sprintf("/boot/EFI/Linux/%s_%s.efi", s.OS.Name, s.OS.RunningRelease))
+		if err != nil {
+			return err
+		}
+	}
+
+	// Ensure the system timezone is set properly.
+	return setTimezone(ctx)
+}
+
 func run(ctx context.Context, s *state.State, t *tui.TUI) error {
 	// Verify that the system meets minimum requirements for running IncusOS.
-	err := install.CheckSystemRequirements(ctx)
+	err := install.CheckSystemRequirements(ctx, t)
 	if err != nil {
 		modal := t.AddModal(s.OS.Name, "system-check")
 		modal.Update("System check error: [red]" + err.Error() + "[white]\n" + s.OS.Name + " is unable to run until the problem is resolved.")
@@ -142,7 +205,7 @@ func run(ctx context.Context, s *state.State, t *tui.TUI) error {
 		// so the error message doesn't flicker off and on, then exit and let systemd start us again.
 		time.Sleep(1 * time.Hour)
 
-		os.Exit(1) //nolint:revive,nolintlint
+		os.Exit(1) //nolint:revive
 	}
 
 	// Warn the user if we failed to read any configuration fields from state.
@@ -231,6 +294,12 @@ func shutdown(ctx context.Context, s *state.State, t *tui.TUI) error {
 	slog.InfoContext(ctx, "System is shutting down", "version", s.OS.RunningRelease)
 	modal.Update("System is shutting down")
 
+	// Shutdown the job scheduler.
+	err := s.JobScheduler.Shutdown()
+	if err != nil {
+		return err
+	}
+
 	// Run application shutdown actions.
 	for appName, appInfo := range s.Applications {
 		// Get the application.
@@ -273,7 +342,7 @@ func shutdown(ctx context.Context, s *state.State, t *tui.TUI) error {
 	return nil
 }
 
-func startup(ctx context.Context, s *state.State, t *tui.TUI) error { //nolint:revive,nolintlint
+func startup(ctx context.Context, s *state.State, t *tui.TUI) error { //nolint:revive
 	// Save state on exit.
 	defer func() { _ = s.Save() }()
 
@@ -292,12 +361,19 @@ func startup(ctx context.Context, s *state.State, t *tui.TUI) error { //nolint:r
 	// Determine runtime mode.
 	mode := "unsafe"
 
+	embeddedCerts, err := certs.GetEmbeddedCertificates()
+	if err != nil {
+		return err
+	}
+
 	for _, key := range keys {
-		if key.Fingerprint == "6cdc880c5df31b18176ddaa3528394aa03791f91" {
+		// Check if we're using a production signing key.
+		if slices.Contains(embeddedCerts.ProductionCertSubjectKeyIDs, key.Fingerprint) {
 			mode = "production"
 		}
 
-		if mode == "unsafe" && (strings.HasPrefix(key.Description, "mkosi of ") || strings.HasPrefix(key.Description, "TestOS Secure Boot Key ")) {
+		// Check if we're using a development signing key.
+		if mode == "unsafe" && (strings.HasPrefix(key.Description, "mkosi of ") || strings.HasPrefix(key.Description, "TestOS - Secure Boot ")) {
 			mode = "dev"
 		}
 
@@ -315,12 +391,22 @@ func startup(ctx context.Context, s *state.State, t *tui.TUI) error { //nolint:r
 	}
 
 	// Get the machine ID.
-	machineID, err := os.ReadFile("/etc/machine-id")
+	machineID, err := s.MachineID()
 	if err != nil {
-		machineID = []byte("UNKNOWN")
+		machineID = "UNKNOWN"
 	}
 
-	slog.InfoContext(ctx, "System is starting up", "mode", mode, "version", s.OS.RunningRelease, "machine-id", strings.TrimSuffix(string(machineID), "\n"))
+	slog.InfoContext(ctx, "System is starting up", "mode", mode, "version", s.OS.RunningRelease, "machine-id", strings.TrimSuffix(machineID, "\n"))
+
+	// Display a warning if we're running with a swtpm-backed TPM.
+	if s.UsingSWTPM {
+		slog.WarnContext(ctx, "Degraded security state: no physical TPM found, using swtpm")
+	}
+
+	// Display a warning if Secure Boot is disabled.
+	if s.SecureBootDisabled {
+		slog.WarnContext(ctx, "Degraded security state: Secure Boot is disabled")
+	}
 
 	// Display a warning if we're running from the backup image.
 	if s.OS.NextRelease != "" && s.OS.RunningRelease != s.OS.NextRelease {
@@ -393,17 +479,27 @@ func startup(ctx context.Context, s *state.State, t *tui.TUI) error { //nolint:r
 	}
 
 	if s.System.Provider.Config.Name == "" {
+		// Apply the provider seed config (if present).
 		providerSeed, err := seed.GetProvider(ctx)
 		if err != nil && !seed.IsMissing(err) {
-			return err
+			return errors.New("unable to parse provider seed: " + err.Error())
 		}
 
 		if providerSeed != nil {
-			s.System.Provider.Config.Name = providerSeed.Name
-			s.System.Provider.Config.Config = providerSeed.Config
+			s.System.Provider.Config = providerSeed.SystemProviderConfig
 		} else {
 			s.System.Provider.Config.Name = provider
 			s.System.Provider.Config.Config = providerConfig
+		}
+
+		// Apply the update seed config (if present).
+		updateSeed, err := seed.GetUpdate(ctx, &s.System.Update.Config)
+		if err != nil && !seed.IsMissing(err) {
+			return errors.New("unable to parse update seed: " + err.Error())
+		}
+
+		if updateSeed != nil {
+			s.System.Update.Config = updateSeed.SystemUpdateConfig
 		}
 	}
 
@@ -479,6 +575,15 @@ func startup(ctx context.Context, s *state.State, t *tui.TUI) error { //nolint:r
 		}
 	}
 
+	// Register background jobs.
+	err = registerJobs(s)
+	if err != nil {
+		return err
+	}
+
+	// Start the job scheduler.
+	s.JobScheduler.Start()
+
 	// Set up handler for daemon actions.
 	s.TriggerReboot = make(chan error, 1)
 	s.TriggerShutdown = make(chan error, 1)
@@ -510,13 +615,14 @@ func startup(ctx context.Context, s *state.State, t *tui.TUI) error { //nolint:r
 
 		switch action {
 		case "shutdown":
+			systemd.RestoreWOLMACAddresses(ctx, s)
 			_ = systemd.SystemPowerOff(ctx)
 		case "reboot":
 			_ = systemd.SystemReboot(ctx)
 		default:
 		}
 
-		os.Exit(0) //nolint:revive,nolintlint
+		os.Exit(0) //nolint:revive
 	}()
 
 	if delayInitialUpdateCheck {
@@ -526,6 +632,16 @@ func startup(ctx context.Context, s *state.State, t *tui.TUI) error { //nolint:r
 
 			updateChecker(ctx, s, t, p, true, false)
 		}()
+	}
+
+	return nil
+}
+
+func registerJobs(s *state.State) error {
+	// Register the ZFS scrub job.
+	err := s.JobScheduler.RegisterJob(zfs.PoolScrubJob, s.System.Storage.Config.ScrubSchedule, zfs.ScrubAllPools)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -588,7 +704,7 @@ func startInitializeApplication(ctx context.Context, s *state.State, appName str
 	return nil
 }
 
-func updateChecker(ctx context.Context, s *state.State, t *tui.TUI, p providers.Provider, isStartupCheck bool, isUserRequested bool) { //nolint:revive,nolintlint
+func updateChecker(ctx context.Context, s *state.State, t *tui.TUI, p providers.Provider, isStartupCheck bool, isUserRequested bool) { //nolint:revive
 	showModalError := func(msg string, err error) {
 		slog.ErrorContext(ctx, msg, "err", err.Error(), "provider", p.Type())
 
@@ -602,22 +718,44 @@ func updateChecker(ctx context.Context, s *state.State, t *tui.TUI, p providers.
 	}
 
 	for {
+		// Determine if a primary application is installed or not.
+		primaryApplication, err := applications.GetPrimary(ctx, s)
+		if err != nil && !errors.Is(err, applications.ErrNoPrimary) {
+			s.System.Update.State.Status = "Failed to check if a primary application is installed"
+			slog.ErrorContext(ctx, s.System.Update.State.Status, "err", err.Error())
+
+			break
+		}
+
 		// If updates are disabled, skip for an hour.
 		if !isUserRequested && s.System.Update.Config.CheckFrequency == "never" {
-			if isStartupCheck {
-				break
+			// Only respect the request to disable update checks if a primary application is installed.
+			// If not, we can find ourselves in a situation where IncusOS boots but is inaccessible
+			// because no primary application is running, and IncusOS would never attempt to install one.
+			if primaryApplication != nil {
+				if isStartupCheck {
+					break
+				}
+
+				time.Sleep(time.Hour)
+
+				continue
 			}
-
-			time.Sleep(time.Hour)
-
-			continue
 		}
 
 		// Sleep at the top of each loop, except if we're performing a startup or manual check.
 		if !isStartupCheck && !isUserRequested {
 			timeSinceCheck := time.Since(s.System.Update.State.LastCheck)
+			rawFrequency := s.System.Update.Config.CheckFrequency
 
-			frequency, err := time.ParseDuration(s.System.Update.Config.CheckFrequency)
+			// If no primary application is installed and the check frequency is never, override
+			// that value to six hours. Once a primary application is successfully installed,
+			// we will honor the request to disable update checks.
+			if primaryApplication == nil && rawFrequency == "never" {
+				rawFrequency = "6h"
+			}
+
+			frequency, err := time.ParseDuration(rawFrequency)
 			if err != nil {
 				// Shouldn't be possible, we validate on update.
 				s.System.Update.State.Status = "Failed to parse update frequency"
@@ -678,16 +816,19 @@ func updateChecker(ctx context.Context, s *state.State, t *tui.TUI, p providers.
 		}
 
 		// Check for and apply any Secure Boot key updates before performing any OS or application updates.
-		_, err := checkDownloadUpdate(ctx, s, t, p, "SecureBoot", "", isStartupCheck)
-		if err != nil {
-			s.System.Update.State.Status = "Failed to check for Secure Boot key updates"
-			showModalError(s.System.Update.State.Status, err)
+		// Only check if Secure Boot is enabled.
+		if !s.SecureBootDisabled {
+			_, err := checkDownloadUpdate(ctx, s, t, p, "SecureBoot", "", isStartupCheck)
+			if err != nil {
+				s.System.Update.State.Status = "Failed to check for Secure Boot key updates"
+				showModalError(s.System.Update.State.Status, err)
 
-			if isStartupCheck || isUserRequested {
-				break
+				if isStartupCheck || isUserRequested {
+					break
+				}
+
+				continue
 			}
-
-			continue
 		}
 
 		// Determine what applications to install.
@@ -709,7 +850,7 @@ func updateChecker(ctx context.Context, s *state.State, t *tui.TUI, p providers.
 
 			if apps != nil {
 				// We have valid seed data.
-				toInstall = []string{}
+				toInstall = make([]string, 0, len(apps.Applications))
 
 				for _, app := range apps.Applications {
 					toInstall = append(toInstall, app.Name)
@@ -717,7 +858,7 @@ func updateChecker(ctx context.Context, s *state.State, t *tui.TUI, p providers.
 			}
 		} else {
 			// We have an existing application list.
-			toInstall = []string{}
+			toInstall = make([]string, 0, len(s.Applications))
 
 			for name := range s.Applications {
 				toInstall = append(toInstall, name)
@@ -762,7 +903,7 @@ func updateChecker(ctx context.Context, s *state.State, t *tui.TUI, p providers.
 		if len(appsUpdated) > 0 {
 			slog.DebugContext(ctx, "Refreshing system extensions")
 
-			err = systemd.RefreshExtensions(ctx)
+			err := systemd.RefreshExtensions(ctx)
 			if err != nil {
 				s.System.Update.State.Status = "Failed to refresh system extensions"
 				showModalError(s.System.Update.State.Status, err)
@@ -1049,7 +1190,7 @@ func applyUpdate(ctx context.Context, s *state.State, t *tui.TUI, update provide
 		}
 	case providers.ApplicationUpdate:
 		// Verify the application is signed with a trusted key in the kernel's keyring.
-		err = systemd.VerifyExtensionCertificateFingerprint(ctx, filepath.Join(systemd.SystemExtensionsPath, appName+".raw"))
+		err = systemd.VerifyExtension(ctx, filepath.Join(systemd.SystemExtensionsPath, appName+".raw"))
 		if err != nil {
 			return "", err
 		}

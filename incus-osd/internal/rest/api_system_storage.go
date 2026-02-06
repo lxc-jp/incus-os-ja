@@ -10,6 +10,7 @@ import (
 
 	"github.com/lxc/incus-os/incus-osd/api"
 	"github.com/lxc/incus-os/incus-osd/internal/rest/response"
+	"github.com/lxc/incus-os/incus-osd/internal/scheduling"
 	"github.com/lxc/incus-os/incus-osd/internal/storage"
 	"github.com/lxc/incus-os/incus-osd/internal/zfs"
 )
@@ -84,49 +85,60 @@ func (s *Server) apiSystemStorage(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		ret, err := storage.GetStorageInfo(r.Context())
+		info, err := storage.GetStorageInfo(r.Context())
 		if err != nil {
 			_ = response.InternalError(err).Render(w)
 
 			return
+		}
+
+		ret := api.SystemStorage{
+			State:  info,
+			Config: s.state.System.Storage.Config,
 		}
 
 		// Return the current system storage state.
 		_ = response.SyncResponse(true, ret).Render(w)
 	case http.MethodPut:
-		// Get the current configuration.
-		current, err := storage.GetStorageInfo(r.Context())
-		if err != nil {
-			_ = response.InternalError(err).Render(w)
+		// Ensure any state updates are persisted.
+		defer s.state.Save()
 
-			return
-		}
-
-		// Create or update a pool.
+		// Read the new config.
 		storageStruct := &api.SystemStorage{}
 
 		counter := &countWrapper{ReadCloser: r.Body}
 
-		err = json.NewDecoder(counter).Decode(storageStruct)
+		err := json.NewDecoder(counter).Decode(storageStruct)
 		if err != nil && counter.n > 0 {
 			_ = response.BadRequest(err).Render(w)
 
 			return
 		}
 
-		if len(storageStruct.Config.Pools) == 0 {
-			if len(current.Config.Pools) == 0 {
-				_ = response.EmptySyncResponse.Render(w)
+		// Apply new schedule to the job scheduler.
+		err = s.state.JobScheduler.RegisterJob(zfs.PoolScrubJob, storageStruct.Config.ScrubSchedule, zfs.ScrubAllPools)
+		if err != nil {
+			if errors.Is(err, scheduling.ErrInvalidCronTab) {
+				_ = response.BadRequest(errors.New("invalid cron expression provided for scrub schedule")).Render(w)
 
 				return
 			}
 
-			_ = response.BadRequest(errors.New("no pool configuration provided")).Render(w)
+			_ = response.InternalError(err).Render(w)
 
 			return
 		}
 
+		// Update scrub schedule in state.
+		s.state.System.Storage.Config.ScrubSchedule = storageStruct.Config.ScrubSchedule
+
 		// Create or update a pool.
+		if len(storageStruct.Config.Pools) == 0 {
+			_ = response.EmptySyncResponse.Render(w)
+
+			return
+		}
+
 		for _, pool := range storageStruct.Config.Pools {
 			if !storage.PoolExists(r.Context(), pool.Name) {
 				err = zfs.CreateZpool(r.Context(), pool, s.state)
@@ -146,8 +158,6 @@ func (s *Server) apiSystemStorage(w http.ResponseWriter, r *http.Request) {
 		// If none of the supported methods, return NotImplemented.
 		_ = response.NotImplemented(nil).Render(w)
 	}
-
-	_ = s.state.Save()
 }
 
 // swagger:operation POST /1.0/system/storage/:delete-pool system system_post_storage_delete_pool
@@ -541,6 +551,79 @@ func (*Server) apiSystemStorageDeleteVolume(w http.ResponseWriter, r *http.Reque
 	err = zfs.DestroyDataset(r.Context(), config.Pool, config.Name, config.Force)
 	if err != nil {
 		_ = response.InternalError(err).Render(w)
+
+		return
+	}
+
+	_ = response.EmptySyncResponse.Render(w)
+}
+
+// swagger:operation POST /1.0/system/storage/:scrub-pool system system_post_storage_scrub_pool
+//
+//	Scrub local pool
+//
+//	Starts a scrub for a local storage pool.
+//
+//	---
+//	consumes:
+//	  - application/json
+//	produces:
+//	  - application/json
+//	parameters:
+//	  - in: body
+//	    name: configuration
+//	    description: The pool to be scrubbed
+//	    required: true
+//	    schema:
+//	      type: object
+//	      example: {"name":"mypool"}
+//	responses:
+//	  "200":
+//	    $ref: "#/responses/EmptySyncResponse"
+//	  "400":
+//	    $ref: "#/responses/BadRequest"
+//	  "409":
+//	    $ref: "#/responses/Conflict"
+//	  "500":
+//	    $ref: "#/responses/InternalServerError"
+func (*Server) apiSystemStorageScrubPool(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		_ = response.NotImplemented(nil).Render(w)
+
+		return
+	}
+
+	type scrubStruct struct {
+		Name string `json:"name"`
+	}
+
+	config := &scrubStruct{}
+
+	counter := &countWrapper{ReadCloser: r.Body}
+
+	err := json.NewDecoder(counter).Decode(config)
+	if err != nil && counter.n > 0 {
+		_ = response.BadRequest(err).Render(w)
+
+		return
+	}
+
+	if config.Name == "" {
+		_ = response.BadRequest(errors.New("no pool name provided")).Render(w)
+
+		return
+	}
+
+	// Scrub the pool.
+	err = zfs.ScrubZpool(r.Context(), config.Name)
+	if err != nil {
+		if errors.Is(err, storage.ErrScrubAlreadyInProgress) {
+			_ = response.Conflict(err).Render(w)
+		} else {
+			_ = response.InternalError(err).Render(w)
+		}
 
 		return
 	}

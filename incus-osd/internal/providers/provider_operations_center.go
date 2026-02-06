@@ -20,10 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lxc/incus/v6/shared/api"
+	incusapi "github.com/lxc/incus/v6/shared/api"
 	"github.com/lxc/incus/v6/shared/osarch"
 	incustls "github.com/lxc/incus/v6/shared/tls"
 
+	"github.com/lxc/incus-os/incus-osd/api"
 	apiupdate "github.com/lxc/incus-os/incus-osd/api/images"
 	"github.com/lxc/incus-os/incus-osd/internal/applications"
 	"github.com/lxc/incus-os/incus-osd/internal/state"
@@ -83,7 +84,7 @@ func (p *operationsCenter) RefreshRegister(ctx context.Context) error {
 	}
 
 	// Get the management address.
-	mgmtAddr := p.state.ManagementAddress()
+	mgmtAddr := p.state.System.Network.State.GetInterfaceAddressByRole(api.SystemNetworkInterfaceRoleManagement)
 	if mgmtAddr == nil {
 		return ErrRegistrationUnsupported
 	}
@@ -119,7 +120,7 @@ func (p *operationsCenter) Register(ctx context.Context, _ bool) error {
 	}
 
 	// Get the management address.
-	mgmtAddr := p.state.ManagementAddress()
+	mgmtAddr := p.state.System.Network.State.GetInterfaceAddressByRole(api.SystemNetworkInterfaceRoleManagement)
 	if mgmtAddr == nil {
 		return ErrRegistrationUnsupported
 	}
@@ -136,7 +137,7 @@ func (p *operationsCenter) Register(ctx context.Context, _ bool) error {
 	}
 
 	// Register.
-	var resp *api.Response
+	var resp *incusapi.Response
 	if p.state.System.Provider.Config.Config["server_token"] != "" {
 		resp, err = p.apiRequest(ctx, http.MethodPost, "/1.0/provisioning/servers?token="+p.state.System.Provider.Config.Config["server_token"], bytes.NewReader(data))
 		if err != nil {
@@ -389,7 +390,7 @@ func (p *operationsCenter) configureClientCertificate(ctx context.Context, tlsCo
 	return nil
 }
 
-func (p *operationsCenter) apiRequest(ctx context.Context, method string, path string, data io.Reader) (*api.Response, error) {
+func (p *operationsCenter) apiRequest(ctx context.Context, method string, path string, data io.Reader) (*incusapi.Response, error) {
 	// Prepare the request.
 	req, err := http.NewRequestWithContext(ctx, method, p.serverURL+path, data)
 	if err != nil {
@@ -455,7 +456,7 @@ func (p *operationsCenter) apiRequest(ctx context.Context, method string, path s
 	}
 
 	// Convert to an Incus response struct.
-	apiResp := &api.Response{}
+	apiResp := &incusapi.Response{}
 
 	err = json.Unmarshal(content, apiResp)
 	if err != nil {
@@ -548,7 +549,7 @@ func (p *operationsCenter) checkRelease(ctx context.Context) (*operationsCenterU
 			continue
 		}
 
-		file.url = p.serverURL + "/1.0/provisioning/updates/" + updates[0].UUID + "/files/" + file.Filename
+		file.url = p.serverURL + "/1.0/provisioning/updates/" + latestUpdate.UUID + "/files/" + file.Filename
 		latestUpdateFiles = append(latestUpdateFiles, file)
 	}
 
@@ -582,7 +583,7 @@ func (a *operationsCenterApplication) Version() string {
 }
 
 func (a *operationsCenterApplication) IsNewerThan(otherVersion string) bool {
-	return datetimeComparison(a.latestUpdate.Version, otherVersion)
+	return DatetimeComparison(a.latestUpdate.Version, otherVersion)
 }
 
 func (a *operationsCenterApplication) Download(ctx context.Context, targetPath string, progressFunc func(float64)) error {
@@ -622,7 +623,7 @@ func (o *operationsCenterOSUpdate) Version() string {
 }
 
 func (o *operationsCenterOSUpdate) IsNewerThan(otherVersion string) bool {
-	return datetimeComparison(o.latestUpdate.Version, otherVersion)
+	return DatetimeComparison(o.latestUpdate.Version, otherVersion)
 }
 
 func (o *operationsCenterOSUpdate) Download(ctx context.Context, targetPath string, progressFunc func(float64)) error {
@@ -696,14 +697,7 @@ func (o *operationsCenterSecureBootCertUpdate) GetFilename() string {
 }
 
 func (o *operationsCenterSecureBootCertUpdate) IsNewerThan(otherVersion string) bool {
-	// Prior to distributing SecureBoot updates via the normal update channel,
-	// we had a hard-coded release URL. The latest version there was 202601010000,
-	// which we need to temporarily allow to downgrade until we pass Jan 1, 2026.
-	if otherVersion == "202601010000" {
-		return datetimeComparison(o.latestUpdate.Version, "202510272025")
-	}
-
-	return datetimeComparison(o.latestUpdate.Version, otherVersion)
+	return DatetimeComparison(o.latestUpdate.Version, otherVersion)
 }
 
 func (o *operationsCenterSecureBootCertUpdate) Download(ctx context.Context, targetPath string, _ func(float64)) error {
