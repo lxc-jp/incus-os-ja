@@ -12,14 +12,23 @@
     </head>
 
     <body>
+        <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+            <symbol id="info-fill" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+            </symbol>
+            <symbol id="exclamation-triangle-fill" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+            </symbol>
+        </svg>
         <div class="container w-75">
             <script src="/ui/js/bootstrap.min.js"></script>
+            <script src="/ui/js/js-yaml.min.js"></script>
             <script src="/ui/js/local.js"></script>
 
             <h1>IncusOS image downloader</h1>
 
             <div class="card">
-                <h5 class="card-header">Introduction</h5>
+                <h2 class="card-header">Introduction</h2>
                 <div class="card-body">
                     <p class="card-text w-75">
                         IncusOS is designed to provide an extremely secure
@@ -119,12 +128,12 @@
 
                                 <div class="mb-3">
                                     <input class="form-check-input" type="radio" name="imageApplication" id="imageApplicationOperationsCenter">
-                                    <label class="form-check-label" for="imageApplicationOperationsCenter">Operations Center - Central deployment and tracking of Incus clusters <span class="badge bg-secondary">Beta</span></label>
+                                    <label class="form-check-label" for="imageApplicationOperationsCenter">Operations Center - Central deployment and tracking of Incus clusters</label>
                                 </div>
 
                                 <div class="mb-3">
                                     <input class="form-check-input" type="radio" name="imageApplication" id="imageApplicationMigrationManager">
-                                    <label class="form-check-label" for="imageApplicationMigrationManager">Migration Manager - VMware to Incus migration orchestrator <span class="badge bg-secondary">Beta</span></label>
+                                    <label class="form-check-label" for="imageApplicationMigrationManager">Migration Manager - VMware to Incus migration orchestrator</label>
                                 </div>
                             </div>
                         </div>
@@ -173,21 +182,54 @@
 
                     <div id="panelApplication" class="accordion-collapse collapse show">
                         <div class="accordion-body">
-                            <div class="mb-3">
-                                <input class="form-check-input" type="checkbox" value="" id="applicationDefaults" checked>
-                                <label class="form-check-label" for="applicationDefaults">Apply default configuration</label>
+                            <div>
+                                <h3>Default configuration</h3>
+                                <div class="mb-3">
+                                    <input class="form-check-input" type="checkbox" value="" id="applicationDefaults" checked>
+                                    <label class="form-check-label" for="applicationDefaults">Apply default configuration</label>
+                                </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label" for="applicationClientCertificate">
-                                    <b>TLS client certificate of the initial trusted client.</b>
-                                    <br>
+                            <div>
+                                <h3>OIDC authentication <span class="badge bg-secondary">optional</span></h3>
+                                <div class="mb-3">
+                                    OpenID Connect (OIDC) authentication allows for a simple web-based login flow that will work on all devices.<br><br>
+                                    Enterprise environments will typically already have their OIDC Identity Provider of choice.<br>
+                                    Alternatively, we provide our own public one which only requires you to have an account on our <a href="https://discuss.linuxcontainers.org" target="_blank">community forum</a>, click <a onclick="oidc()" href="#oidc">here to use it</a>.
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="applicationOIDCIssuer">Issuer</label>
+                                    <input type="text" class="form-control" id="applicationOIDCIssuer" placeholder="https://sso.linuxcontainers.org">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="applicationOIDCClientID">Client ID</label>
+                                    <input type="text" class="form-control" id="applicationOIDCClientID" placeholder="123456">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="applicationOIDCScopes">Scopes</label>
+                                    <input type="text" class="form-control" id="applicationOIDCScopes" placeholder="openid,profile,offline_access">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="applicationOIDCClaim">Login claim</label>
+                                    <input type="text" class="form-control" id="applicationOIDCClaim" placeholder="preferred_username">
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3>TLS client certificate <span class="badge bg-secondary">required</span></h3>
+                                <div class="mb-3">
+                                    TLS authentication is the built-in local authentication mechanism.<br>
+                                    We require a minimum of one certificate to always be trusted even if OIDC authentication is used as this provides a way to recover the system should OIDC fail.<br><br>
+
                                     If using the <a href="https://github.com/lxc/incus/releases/latest/" target="_blank">Incus CLI tool</a>, this can be retrieved by running <code>incus remote get-client-certificate</code>.
                                     <br>
                                     Alternatively, one can be <a onclick="certificate()" href="#certificate">generated</a> for you which can be imported in your web browser for UI access.
-                                </label>
-                                <textarea class="form-control" id="applicationClientCertificate" rows="10" placeholder="-----BEGIN CERTIFICATE-----&#10;<snip>&#10;-----END CERTIFICATE-----"></textarea>
-
+                                    <textarea class="form-control" id="applicationClientCertificate" rows="10" placeholder="-----BEGIN CERTIFICATE-----&#10;<snip>&#10;-----END CERTIFICATE-----"></textarea>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -227,7 +269,26 @@
                                     Supported options and examples can be <a href="https://linuxcontainers.org/incus-os/docs/main/reference/system/network/" target="_blank">found here</a>.
                                 </p>
 
-                                <textarea class="form-control" id="networkConfiguration" rows="12" placeholder='{&#10;  "interfaces": [&#10;    {&#10;      "name": "management",&#10;      "hwaddr": "00:11:22:33:44:55",&#10;      "addresses": [&#10;        "dhcp4",&#10;        "slaac"&#10;      ]&#10;    }&#10;  ]&#10;}'></textarea>
+                                <textarea class="form-control" id="networkConfiguration" rows="12" placeholder='interfaces:&#10;- name: "management"&#10;   hwaddr: "00:11:22:33:44:55"&#10;   addresses:&#10;   - "dhcp4"&#10;   - "slaac"&#10;'></textarea>
+
+                                <br>
+                                <div class="alert alert-primary d-flex align-items-center" role="alert">
+                                    <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Info:"><use xlink:href="#info-fill"/></svg>
+                                    <div>
+                                        Note that the network
+                                        configuration seed data differs
+                                        slightly from the network configuration
+                                        used after installation.<br>
+                                        The two main differences are:
+                                        <ul>
+                                            <li>The configuration isn't
+                                            inside of a "config" entity</li>
+                                            <li>Interface names may be used
+                                            wherever a MAC address would
+                                            normally be required</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -249,6 +310,48 @@
 
                                 <input type="text" class="form-control" id="imageChannel" placeholder="stable">
                             </div>
+
+                            <div class="mb-3">
+                                <h3>Boot security</h3>
+
+                                <p>
+                                    IncusOS relies on both UEFI Secure
+                                    Boot and a TPM 2.0 module to provide
+                                    strong boot security.<br>
+                                    Unfortunately some systems don't
+                                    fully support those features. To
+                                    handle that, IncusOS can be installed
+                                    with degraded boot security.
+                                </p>
+
+                                <div class="mb-3">
+                                    <input class="form-check-input" type="radio" name="installSecurity" id="installSecurityOptimal" checked>
+                                    <label class="form-check-label" for="installSecurityOptimal">Optimal boot security (UEFI Secure Boot & TPM 2.0)</label>
+                                </div>
+
+                                <div class="mb-3">
+                                    <input class="form-check-input" type="radio" name="installSecurity" id="installSecurityNoTPM">
+                                    <label class="form-check-label" for="installSecurityNoTPM">Degraded boot security (no TPM 2.0 module)</label>
+                                </div>
+
+                                <div class="mb-3">
+                                    <input class="form-check-input" type="radio" name="installSecurity" id="installSecurityNoSecureBoot">
+                                    <label class="form-check-label" for="installSecurityNoSecureBoot">Degraded boot security (no Secure Boot)</label>
+                                </div>
+
+                                <div class="alert alert-danger d-flex align-items-center" role="alert">
+                                    <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:"><use xlink:href="#exclamation-triangle-fill"/></svg>
+                                    <div>
+                                        Installing with degraded boot
+                                        security should be avoided as
+                                        much as possible.<br>The resulting
+                                        installation will be marked as
+                                        having degraded security which may
+                                        restrict some functionality and
+                                        the ability to get support on it.
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -263,7 +366,7 @@
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="certificateModalLabel">Certificate generated</h5>
+                        <h1 class="modal-title" id="certificateModalLabel">Certificate generated</h1>
                     </div>
 
                     <div class="modal-body">
@@ -289,5 +392,44 @@
                 </div>
             </div>
         </div>
+
+        <div class="modal modal-xl fade" id="oidcModal" tabindex="-1" role="dialog" aria-labelledby="oidcModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h1 class="modal-title" id="oidcModalLabel">Public OIDC provider</h1>
+                    </div>
+
+                    <div class="modal-body">
+                        <p>
+                            The public OIDC provider relies on users having an account on the <a href="https://discuss.linuxcontainers.org" target="_blank">community forum</a>.<br>
+                            We then generate a per-server OpenID Connect Client ID which can be used with Incus, Operations Center or Migration Manager.
+                        </p>
+
+                        <p>
+                            When acessing your server, you will be sent to our SSO server which will then send you to the forum to authenticate.<br>
+                            If successful, you'll be granted full access.
+                        </p>
+
+                        <p>
+                            <b>NOTE:</b> You are trusting a third party with your authentication.
+                            <br>
+                            Whenever possible, you should look at deploying your own Identiy Provider to avoid relying on a third party service.
+                        </p>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="oidcModalUsername">Username</label>
+                            <input type="text" class="form-control" id="oidcModalUsername" placeholder="john-doe">
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button onclick="oidcGenerate()" type="button" class="btn btn-primary" data-bs-dismiss="modal">Submit</button>
+                        <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </body>
 </html>

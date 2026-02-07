@@ -11,8 +11,19 @@
             "usr/local/bin/incus-osd"
         ]
     },
+    "edk2": {
+        "version": "edk2-stable202511",
+        "repo": "https://github.com/tianocore/edk2",
+        "submodules": true,
+        "build_targets": [],
+        "install_targets": [],
+        "clean_targets": [],
+        "requires": [
+            "../patches/edk2-logo.bmp"
+        ]
+    },
     "kpx": {
-        "version": "1.12.3",
+        "version": "v1.12.3",
         "repo": "https://github.com/momiji/kpx.git",
         "patches": [
             "../../patches/kpx-0001-Enable-IPv6-support.patch"
@@ -37,7 +48,7 @@
         ]
     },
     "lego": {
-        "version": "4.29.0",
+        "version": "v4.31.0",
         "repo": "https://github.com/go-acme/lego.git",
         "build_targets": [
             [
@@ -58,8 +69,32 @@
             "usr/local/bin/lego"
         ]
     },
+    "linux-firmware": {
+        "version": "20260110",
+        "repo": "https://kernel.googlesource.com/pub/scm/linux/kernel/git/firmware/linux-firmware.git",
+        "build_targets": [],
+        "install_targets": [
+            [
+                "amdgpu",
+                "usr/lib/firmware/"
+            ],
+            [
+                "i915",
+                "usr/lib/firmware/"
+            ],
+            [
+                "nvidia",
+                "usr/lib/firmware/"
+            ]
+        ],
+        "clean_targets": [
+            "usr/lib/firmware/amdgpu",
+            "usr/lib/firmware/i915",
+            "usr/lib/firmware/nvidia"
+        ]
+    },
     "migration-manager": {
-        "version": "0.1.0",
+        "version": "v0.4.4",
         "repo": "https://github.com/FuturFusion/migration-manager.git",
         "build_targets": [
             [
@@ -108,7 +143,7 @@
         ]
     },
     "opentofu": {
-        "version": "1.10.7",
+        "version": "v1.11.4",
         "repo": "https://github.com/opentofu/opentofu.git",
         "build_targets": [
             [
@@ -126,8 +161,11 @@
         ]
     },
     "operations-center": {
-        "version": "main",
+        "version": "v0.2.2",
         "repo": "https://github.com/FuturFusion/operations-center.git",
+        "patches": [
+            "../../patches/operations-center-0001-offline-import.patch"
+        ],
         "build_targets": [
             [
                 "./cmd/operations-centerd"
@@ -168,7 +206,7 @@
         ]
     },
     "tailscale": {
-        "version": "1.92.1",
+        "version": "v1.94.1",
         "repo": "https://github.com/tailscale/tailscale.git",
         "build_targets": [
             [
@@ -201,7 +239,7 @@
         ]
     },
     "terraform-provider-incus": {
-        "version": "1.0.1",
+        "version": "v1.0.2",
         "repo": "https://github.com/lxc/terraform-provider-incus.git",
         "build_targets": [
             [
@@ -211,12 +249,12 @@
         "rename_targets": [
             [
                 "terraform-provider-incus",
-                "terraform-provider-incus_v@VERSION@"
+                "terraform-provider-incus_@TAG@"
             ]
         ],
         "install_targets": [
             [
-                "terraform-provider-incus_v@VERSION@",
+                "terraform-provider-incus_@TAG@",
                 "usr/share/terraform/plugins/registry.opentofu.org/lxc/incus/@VERSION@/linux_@ARCH@/"
             ]
         ],
@@ -225,7 +263,7 @@
         ]
     },
     "terraform-provider-null": {
-        "version": "3.2.4",
+        "version": "v3.2.4",
         "repo": "https://github.com/hashicorp/terraform-provider-null.git",
         "build_targets": [
             [
@@ -235,12 +273,12 @@
         "rename_targets": [
             [
                 "terraform-provider-null",
-                "terraform-provider-null_v@VERSION@"
+                "terraform-provider-null_@TAG@"
             ]
         ],
         "install_targets": [
             [
-                "terraform-provider-null_v@VERSION@",
+                "terraform-provider-null_@TAG@",
                 "usr/share/terraform/plugins/registry.opentofu.org/hashicorp/null/@VERSION@/linux_@ARCH@/"
             ]
         ],
@@ -249,7 +287,7 @@
         ]
     },
     "terraform-provider-random": {
-        "version": "3.7.2",
+        "version": "v3.8.0",
         "repo": "https://github.com/hashicorp/terraform-provider-random.git",
         "build_targets": [
             [
@@ -259,12 +297,12 @@
         "rename_targets": [
             [
                 "terraform-provider-random",
-                "terraform-provider-random_v@VERSION@"
+                "terraform-provider-random_@TAG@"
             ]
         ],
         "install_targets": [
             [
-                "terraform-provider-random_v@VERSION@",
+                "terraform-provider-random_@TAG@",
                 "usr/share/terraform/plugins/registry.opentofu.org/hashicorp/random/@VERSION@/linux_@ARCH@/"
             ]
         ],
@@ -273,7 +311,7 @@
         ]
     },
     "terraform-provider-time": {
-        "version": "0.13.1",
+        "version": "v0.13.1",
         "repo": "https://github.com/hashicorp/terraform-provider-time.git",
         "build_targets": [
             [
@@ -283,12 +321,12 @@
         "rename_targets": [
             [
                 "terraform-provider-time",
-                "terraform-provider-time_v@VERSION@"
+                "terraform-provider-time_@TAG@"
             ]
         ],
         "install_targets": [
             [
-                "terraform-provider-time_v@VERSION@",
+                "terraform-provider-time_@TAG@",
                 "usr/share/terraform/plugins/registry.opentofu.org/hashicorp/time/@VERSION@/linux_@ARCH@/"
             ]
         ],

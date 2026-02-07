@@ -4,6 +4,8 @@ IncusOSでは複雑なZFSストレージプールを設定できます。各プ�
 
 ストレージプールを作成する際、IncusOSはローカルのデバイスあるいはiSCSIのような[サービス](../services.md)経由で利用可能なリモートのデバイスを使えます。
 
+データの整合性を維持するため、IncusOSはシステム内のすべてのストレージプールを毎週scrubを自動で行います。scrubのスケジュールはデフォルトでは日曜の04:00ですが、ユーザーが設定できます。また指定のプールのscrubを手動で開始することもできます。
+
 既存のストレージプールにデバイスを追加、削除、置き換えることもできます。これは現在のプール設定を取得し、対応する構造体に変更を加えて、IncusOSに変更結果を提示することで実現できます。
 
 ```{note}
@@ -19,6 +21,7 @@ IncusOSでは複雑なZFSストレージプールを設定できます。各プ�
 以下の設定オプションが設定できます：
 
 * `pools`: 1つ以上のユーザー定義のストレージプール定義の配列。
+* `scrub_schedule`: すべてのストレージプールに自動でscrubをいつ実行するかを示す5つのフィールドのcron式。デフォルトは0 4 * * 0。
 
 ```{note}
 プールにデバイスを指定する際、順序が重要です。IncusOSはAPIで受け取ったデバイスのリストを比較する際、どのデバイスをプールに追加、削除、置換するかを決定するために使用するソート済みリストを常に返します。別の言い方をすると`"devices": ["/dev/sda", "/dev/sdb"]` != `"devices": ["/dev/sdb", "/dev/sda"]`です。
@@ -26,32 +29,48 @@ IncusOSでは複雑なZFSストレージプールを設定できます。各プ�
 
 ### 例
 
-4つのデバイス、1つのキャッシュデバイス、1つのログデバイスでZFS raidz1として`mypool`というストレージプールを作成します：
+4つのデバイス、1つのキャッシュデバイス、1つのログデバイスでZFS raidz1として`mypool`というストレージプールを作成し、自動scrubを毎週日曜日の00:00に設定します：
 
-```
-{
-    "pools": [
-        {"name":"mypool",
-         "type":"zfs-raidz1",
-         "devices":["/dev/sdb","/dev/sdc","/dev/sdd","/dev/sde"],
-         "cache":["/dev/sdf"],
-         "log":["/dev/sdg"]}
-    ]
-}
+```yaml
+config:
+  scrub_schedule: "0 0 * * 6"
+  pools:
+  - name: "mypool"
+    type: "zfs-raidz1"
+
+    devices:
+    - "/dev/sdb"
+    - "/dev/sdc"
+    - "/dev/sdd"
+    - "/dev/sde"
+
+    cache:
+    - "/dev/sdf"
+
+    log:
+    - "/dev/sdg"
 ```
 
 故障したデバイス`/dev/sdb`を`/dev/sdh`で置き換えます：
 
-```
-{
-    "pools": [
-        {"name":"mypool",
-         "type":"zfs-raidz1",
-         "devices":["/dev/sdh","/dev/sdc","/dev/sdd","/dev/sde"],
-         "cache":["/dev/sdf"],
-         "log":["/dev/sdg"]}
-    ]
-}
+```yaml
+config:
+  scrub_schedule: "0 0 * * 6"
+  pools:
+  - name: "mypool"
+    type: "zfs-raidz1"
+
+    devices:
+    - "/dev/sdh"
+    - "/dev/sdc"
+    - "/dev/sdd"
+    - "/dev/sde"
+
+    cache:
+    - "/dev/sdf"
+
+    log:
+    - "/dev/sdg"
 ```
 
 安全なストレージのプール暗号鍵を取得します（base64エンコード形式）：
@@ -75,6 +94,14 @@ state:
 
 ```
 incus admin os system storage delete-pool -d '{"name":"mypool"}'
+```
+
+## ストレージプールのscrub
+
+`mypool`ストレージプールのscrubを開始にするには以下のコマンドを実行します。
+
+```
+incus admin os system storage scrub-pool -d '{"name":"mypool"}'
 ```
 
 ## ドライブの消去

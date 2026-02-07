@@ -327,6 +327,7 @@ func processNewState(ctx context.Context, oldState **state.State, newState *stat
 	newState.Services.NVME.State = api.ServiceNVMEState{}
 	newState.Services.OVN.State = api.ServiceOVNState{}
 	newState.Services.USBIP.State = api.ServiceUSBIPState{}
+	newState.System.Kernel.State = api.SystemKernelState{}
 	newState.System.Logging.State = api.SystemLoggingState{}
 	newState.System.Network.State = api.SystemNetworkState{}
 	newState.System.Provider.State = api.SystemProviderState{}
@@ -428,7 +429,7 @@ func installApplication(ctx context.Context, s *state.State, p providers.Provide
 	}
 
 	// Verify the application is signed with a trusted key in the kernel's keyring.
-	err = systemd.VerifyExtensionCertificateFingerprint(ctx, filepath.Join(systemd.SystemExtensionsPath, papp.Name()+".raw"))
+	err = systemd.VerifyExtension(ctx, filepath.Join(systemd.SystemExtensionsPath, papp.Name()+".raw"))
 	if err != nil {
 		return "", err
 	}

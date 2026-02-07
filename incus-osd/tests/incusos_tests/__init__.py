@@ -2,9 +2,10 @@ from inspect import getmembers, isfunction
 
 from . import tests_flasher_tool, tests_incusos_api, tests_incusos_api_applications, tests_incusos_api_debug, \
     tests_incusos_api_services, tests_incusos_api_system, tests_incusos_api_system_logging, tests_incusos_api_system_provider, \
-    tests_incusos_api_system_resources, tests_incusos_api_system_security, tests_incusos_api_system_storage_import_pool, \
-    tests_incusos_api_system_storage_local_pool, tests_incusos_live, tests_install_smoke, tests_install_system_checks, \
-    tests_seed_applications, tests_seed_install, tests_upgrade
+    tests_incusos_api_system_reset, tests_incusos_api_system_resources, tests_incusos_api_system_security, \
+    tests_incusos_api_system_storage_import_pool, tests_incusos_api_system_storage_local_pool, tests_incusos_live, \
+    tests_install_secureboot_disabled, tests_install_smoke, tests_install_swtpm, tests_install_system_checks, \
+    tests_recovery, tests_seed_applications, tests_seed_install, tests_upgrade
 
 class IncusOSTests:
     def __init__(self, prior_image_img, current_image_img, current_image_iso):
@@ -27,6 +28,12 @@ class IncusOSTests:
             # Baseline install smoke tests
             tests_install_smoke,
 
+            # Test use of swtpm
+            tests_install_swtpm,
+
+            # Test disabling Secure Boot
+            tests_install_secureboot_disabled,
+
             # Basic application seed tests
             tests_seed_applications,
 
@@ -44,10 +51,14 @@ class IncusOSTests:
             tests_incusos_api_system,
             tests_incusos_api_system_logging,
             tests_incusos_api_system_provider,
+            tests_incusos_api_system_reset,
             tests_incusos_api_system_resources,
             tests_incusos_api_system_security,
             tests_incusos_api_system_storage_import_pool,
             tests_incusos_api_system_storage_local_pool,
+
+            # Test recovery from external media
+            tests_recovery,
         ]
 
         # Test the flasher-tool utility
@@ -70,6 +81,9 @@ class IncusOSTests:
         for mod in modules:
             for name, fn in getmembers(mod, isfunction):
                 if not name.startswith("Test"):
+                    continue
+
+                if ext == "iso" and name.endswith("ReadonlyImage"):
                     continue
 
                 ret.append([name + "/" + ext, fn, image])

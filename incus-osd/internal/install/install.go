@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	apiseed "github.com/lxc/incus-os/incus-osd/api/seed"
+	"github.com/lxc/incus-os/incus-osd/internal/secureboot"
 	"github.com/lxc/incus-os/incus-osd/internal/seed"
 	"github.com/lxc/incus-os/incus-osd/internal/storage"
 	"github.com/lxc/incus-os/incus-osd/internal/systemd"
@@ -39,44 +40,116 @@ var cdromMappedDevice = "/dev/mapper/sr0"
 var cdromRegex = regexp.MustCompile(`^/dev/sr(\d+)`)
 
 // CheckSystemRequirements verifies that the system meets the minimum requirements for running IncusOS.
-func CheckSystemRequirements(ctx context.Context) error {
+func CheckSystemRequirements(ctx context.Context, t *tui.TUI) error {
 	// Check if Secure Boot is enabled.
-	output, err := subprocess.RunCommandContext(ctx, "bootctl", "status")
+	sbEnabled, err := secureboot.Enabled()
 	if err != nil {
 		return err
-	} else if !strings.Contains(output, "Secure Boot: enabled") {
-		return errors.New("Secure Boot is not enabled") //nolint:staticcheck
 	}
 
-	// Check if a TPM device is present and working.
-	_, err = subprocess.RunCommandContext(ctx, "tpm2_selftest")
+	// Check if a TPM device, either hardware or swtpm, is present and working.
+	_, tpmErr := subprocess.RunCommandContext(ctx, "tpm2_selftest")
+
+	// Determine if there's a working physical TPM.
+	workingPhysicalTPM := tpmErr == nil && !secureboot.GetSWTPMInUse()
+
+	// If Secure Boot is disabled and there's no working physical TPM, refuse to continue.
+	if !sbEnabled && !workingPhysicalTPM {
+		return errors.New("cannot run if Secure Boot is disabled and no physical TPM is present")
+	}
+
+	// Get the install seed, if it exists.
+	installSeed, err := seed.GetInstall()
+	if err != nil && !seed.IsMissing(err) && !errors.Is(err, io.EOF) {
+		return errors.New("unable to get install seed: " + err.Error())
+	}
+
+	// Validate that the install seed, if present, doesn't attempt to configure an invalid degraded security state.
+	if installSeed != nil && installSeed.Security != nil {
+		if installSeed.Security.MissingTPM && installSeed.Security.MissingSecureBoot {
+			return errors.New("install seed cannot enable both Secure Boot and TPM degraded security options")
+		}
+
+		// Return an error if there's a physical TPM but the install seed wants to configure swtpm.
+		if workingPhysicalTPM && installSeed.Security.MissingTPM {
+			return errors.New("a physical TPM was found, but install seed wants to configure a swtpm-backed TPM")
+		}
+
+		// Return an error if Secure Boot is enabled but the install seed expects it to be disabled.
+		if sbEnabled && installSeed.Security.MissingSecureBoot {
+			return errors.New("Secure Boot is enabled, but install seed expects it to be disabled") //nolint:staticcheck
+		}
+	}
+
+	// If Secure Boot is enabled, but there's no working TPM, attempt to initialize swtpm for use on next boot.
+	if sbEnabled && tpmErr != nil {
+		// Return an error if there's no working TPM and the install seed doesn't allow using swtpm.
+		if installSeed != nil && (installSeed.Security == nil || !installSeed.Security.MissingTPM) {
+			return errors.New("no working TPM found, but install seed doesn't allow for use of swtpm")
+		}
+
+		err := configureSWTPM(ctx, t, installSeed != nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	// If Secure Boot is disabled and there's a working physical TPM, allow running.
+	if !sbEnabled && workingPhysicalTPM {
+		// Return an error if Secure Boot is disabled and the install seed doesn't allow this.
+		if installSeed != nil && (installSeed.Security == nil || !installSeed.Security.MissingSecureBoot) {
+			return errors.New("Secure Boot is disabled, but install seed doesn't allow this") //nolint:staticcheck
+		}
+
+		// Only display warning during install or first boot.
+		_, err := os.Stat("/boot/sb-disabled")
+		if err != nil && errors.Is(err, os.ErrNotExist) {
+			displayDegradedSecurityWarning(t, "Disabling Secure Boot")
+
+			// Create the flag file here if live boot, otherwise it will be created on the new
+			// ESP partition at the conclusion of the install.
+			if installSeed == nil {
+				fd, err := os.Create("/boot/sb-disabled")
+				if err != nil {
+					return err
+				}
+
+				_ = fd.Close()
+			}
+		}
+	}
+
+	// Get the source device that IncusOS is running from.
+	sourceDevice, sourceIsReadonly, sourceDeviceSize, err := getSourceDevice(ctx)
 	if err != nil {
-		return errors.New("no working TPM device found")
+		return errors.New("unable to determine source device: " + err.Error())
 	}
 
-	// Check if systemd-repart has failed (we're either running from a read-only or a small USB
-	// stick), or we're running from a CDROM, which normally indicates we're about to start an
-	// install but there's no install seed present.
-	if (systemd.IsFailed(ctx, "systemd-repart") || runningFromCDROM()) && !ShouldPerformInstall() {
-		return errors.New("unable to begin install without seed configuration")
+	// If we aren't going to perform an install but systemd-repart failed or we're running from a CDROM,
+	// display an appropriate error message to the user.
+	if !ShouldPerformInstall() && (systemd.IsFailed(ctx, "systemd-repart") || runningFromCDROM()) {
+		if sourceIsReadonly {
+			return fmt.Errorf("unable to begin install from read-only device '%s' without seed configuration", sourceDevice)
+		}
+
+		if sourceDeviceSize < 50*1024*1024*1024 {
+			return fmt.Errorf("source device '%s' is too small (%0.2fGiB), must be at least 50GiB", sourceDevice, float64(sourceDeviceSize)/(1024.0*1024.0*1024.0))
+		}
+
+		// systemd-repart has failed for some reason; attempt to get its logs from the journal.
+		output, err := subprocess.RunCommandContext(ctx, "journalctl", "_COMM=systemd-repart", "-I", "-o", "cat", "-u", "systemd-repart")
+		if err != nil {
+			return errors.New("failed to run systemd-repart and unable to get any logs")
+		}
+
+		return errors.New("failed to run systemd-repart:\n" + output)
 	}
 
 	// Perform install-specific checks.
-	if ShouldPerformInstall() { //nolint:nestif
-		// Check that we have either been told what target device to use, or that we can automatically figure it out.
-		source, _, err := getSourceDevice(ctx)
-		if err != nil {
-			return errors.New("unable to determine source device: " + err.Error())
-		}
-
-		targets, err := getAllTargets(ctx, source)
+	if installSeed != nil { //nolint:nestif
+		targets, err := getAllTargets(ctx, sourceDevice)
 		if err != nil {
 			return errors.New("unable to get list of potential target devices: " + err.Error())
-		}
-
-		config, err := seed.GetInstall()
-		if err != nil && !errors.Is(err, io.EOF) {
-			return errors.New("unable to get seed config: " + err.Error())
 		}
 
 		// Sanity check: if we're not running from a CDROM, ensure that the default install media seed partition
@@ -93,12 +166,12 @@ func CheckSystemRequirements(ctx context.Context) error {
 			}
 
 			seedPartition := filepath.Join("/dev/disk/by-partlabel", seedLink)
-			if !strings.HasPrefix(seedPartition, source) {
+			if !strings.HasPrefix(seedPartition, sourceDevice) {
 				return errors.New("install media detected, but the system is already installed; please remove USB/CDROM and reboot the system")
 			}
 		}
 
-		targetDevice, targetDeviceSize, err := getTargetDevice(targets, config.Target)
+		targetDevice, targetDeviceSize, err := getTargetDevice(targets, installSeed.Target)
 		if err != nil {
 			devices := []string{}
 			for _, t := range targets {
@@ -155,7 +228,7 @@ func (i *Install) DoInstall(ctx context.Context, osName string) error {
 	slog.InfoContext(ctx, "Starting install of "+osName+" to local disk")
 	modal.Update("Starting install of " + osName + " to local disk.")
 
-	sourceDevice, sourceIsReadonly, err := getSourceDevice(ctx)
+	sourceDevice, sourceIsReadonly, _, err := getSourceDevice(ctx)
 	if err != nil {
 		modal.Update("[red]Error: " + err.Error())
 
@@ -215,10 +288,10 @@ func runningFromCDROM() bool {
 }
 
 // getSourceDevice determines the underlying device incus-osd is running on and if it is read-only.
-func getSourceDevice(ctx context.Context) (string, bool, error) {
+func getSourceDevice(ctx context.Context) (string, bool, int, error) { //nolint:revive
 	// Check if we're running from a CDROM.
 	if runningFromCDROM() {
-		return cdromMappedDevice, true, nil
+		return cdromMappedDevice, true, -1, nil
 	}
 
 	// If boot.mount has failed, we're running from a read-only USB stick.
@@ -227,17 +300,30 @@ func getSourceDevice(ctx context.Context) (string, bool, error) {
 	// need to check its output.
 	output, err := subprocess.RunCommandContext(ctx, "journalctl", "-b", "-u", "boot.mount")
 	if err != nil {
-		return "", false, err
+		return "", false, -1, err
 	}
 
 	isReadonlyInstallFS := strings.Contains(output, "Dependency failed for boot.mount - EFI System Partition Automount.")
 
 	underlyingDevice, err := storage.GetUnderlyingDevice()
 	if err != nil {
-		return "", isReadonlyInstallFS, err
+		return "", isReadonlyInstallFS, -1, err
 	}
 
-	return underlyingDevice, isReadonlyInstallFS, nil
+	// Get the device's size.
+	lsblkOutput := storage.LsblkOutput{}
+
+	output, err = subprocess.RunCommandContext(ctx, "lsblk", "-iJnpbs", "-o", "KNAME,ID_LINK,SIZE", underlyingDevice)
+	if err != nil {
+		return "", isReadonlyInstallFS, -1, err
+	}
+
+	err = json.Unmarshal([]byte(output), &lsblkOutput)
+	if err != nil {
+		return "", isReadonlyInstallFS, -1, err
+	}
+
+	return underlyingDevice, isReadonlyInstallFS, lsblkOutput.BlockDevices[0].Size, nil
 }
 
 // getAllTargets returns a list of all potential install target devices.
@@ -274,6 +360,22 @@ func getAllTargets(ctx context.Context, sourceDevice string) ([]storage.BlockDev
 
 	ret = append(ret, scsiTargets.BlockDevices...)
 
+	// Get MMC drives third.
+	mmcTargets := storage.LsblkOutput{}
+
+	// MMC block devices have major number 179 (https://www.kernel.org/doc/Documentation/admin-guide/devices.txt)
+	output, err = subprocess.RunCommandContext(ctx, "lsblk", "-I", "179", "-iJnpb", "-o", "KNAME,ID_LINK,SIZE")
+	if err != nil {
+		return []storage.BlockDevices{}, err
+	}
+
+	err = json.Unmarshal([]byte(output), &mmcTargets)
+	if err != nil {
+		return []storage.BlockDevices{}, err
+	}
+
+	ret = append(ret, mmcTargets.BlockDevices...)
+
 	// Get virtual drives last.
 	virtualTargets := storage.LsblkOutput{}
 
@@ -296,13 +398,25 @@ func getAllTargets(ctx context.Context, sourceDevice string) ([]storage.BlockDev
 			continue
 		}
 
-		if strings.HasPrefix(entry.ID, "usb-Linux_Virtual_") {
-			// Virtual BMC devices on DELL servers.
+		if entry.ID == "" {
+			// Skip devices that don't have a link ID, such as mmcblk0boot0.
+			continue
+		}
+
+		if storage.IsBMC(entry) {
+			// Skip all BMC virtual devices.
 			continue
 		}
 
 		if cdromRegex.MatchString(entry.KName) {
 			// Ignore all CDROM devices.
+			continue
+		}
+
+		if slices.ContainsFunc(filtered, func(a storage.BlockDevices) bool {
+			return a.ID == entry.ID
+		}) {
+			// Skip any duplicate device IDs.
 			continue
 		}
 
@@ -347,7 +461,7 @@ func getTargetDevice(potentialTargets []storage.BlockDevices, seedTarget *apisee
 }
 
 // performInstall performs the steps to install incus-osd from the given target to the source device.
-func (i *Install) performInstall(ctx context.Context, modal *tui.Modal, sourceDevice string, targetDevice string, sourceIsReadonly bool) error {
+func (i *Install) performInstall(ctx context.Context, modal *tui.Modal, sourceDevice string, targetDevice string, sourceIsReadonly bool) error { //nolint:revive
 	// Get architecture name.
 	archName, err := osarch.ArchitectureGetLocal()
 	if err != nil {
@@ -552,18 +666,49 @@ func (i *Install) performInstall(ctx context.Context, modal *tui.Modal, sourceDe
 		return err
 	}
 
-	// Finally, run `bootctl install`.
+	// Mount /boot/ for final install steps.
 	err = os.MkdirAll("/boot", 0o755)
 	if err != nil {
 		return err
 	}
 
-	err = unix.Mount(targetDevice+targetPartitionPrefix+"1", "/boot", "vfat", 0, "")
+	err = unix.Mount(targetDevice+targetPartitionPrefix+"1", "/boot", "vfat", 0, "umask=0077")
 	if err != nil {
 		return err
 	}
 
-	_, err = subprocess.RunCommandContext(ctx, "bootctl", "install")
+	// If swtpm state was configured, move it to the ESP partition.
+	_, err = os.Stat("/tmp/swtpm/")
+	if err == nil {
+		_, err = subprocess.RunCommandContext(ctx, "sh", "-c", "mv /tmp/swtpm/ /boot/")
+		if err != nil {
+			return err
+		}
+	}
+
+	// If Secure Boot is disabled, create the flag file on the ESP partition.
+	sbEnabled, err := secureboot.Enabled()
+	if err != nil {
+		return err
+	}
+
+	if !sbEnabled {
+		fd, err := os.Create("/boot/sb-disabled")
+		if err != nil {
+			return err
+		}
+
+		_ = fd.Close()
+	}
+
+	// Perform a reset of the TPM. This is to address a few systems we've seen that fail on
+	// first-boot running systemd-repart because the TPM was in a weird state. This is allowed
+	// to fail, since some physical TPMs may not allow a reset from userspace, or if swtpm is
+	// configured that service won't be running yet.
+	_, _ = subprocess.RunCommandContext(ctx, "tpm2_clear")
+
+	// Finally, run `bootctl install`.
+	_, err = subprocess.RunCommandContext(ctx, "bootctl", "--graceful", "install")
 	if err != nil {
 		return err
 	}
@@ -744,13 +889,97 @@ func (i *Install) rebootUponDeviceRemoval(_ context.Context, device string) erro
 }
 
 // GetPartitionPrefix returns the necessary partition prefix, if any, for a give device.
-// nvme devices have partitions named "pN", while traditional disk partitions are just "N".
+// nvme and mmc devices have partitions named "pN", while traditional disk partitions are just "N".
 func GetPartitionPrefix(device string) string {
 	cdromMatched, _ := regexp.MatchString(`/mapper/sr\d+`, device)
 
-	if strings.Contains(device, "/nvme") || cdromMatched {
+	if strings.Contains(device, "/nvme") || strings.Contains(device, "/mmcblk") || cdromMatched {
 		return "p"
 	}
 
 	return ""
+}
+
+// configureSWTPM will configure the swtpm-based TPM after displaying a warning modal. If
+// IncusOS is running live from the USB drive, configure swtpm and immediately reboot so the
+// live system can have a proper TPM.
+func configureSWTPM(ctx context.Context, t *tui.TUI, isInstall bool) error {
+	displayDegradedSecurityWarning(t, "A software-backed TPM")
+
+	if isInstall {
+		// At the conclusion of the install, the swtpm state will be copied to the new ESP partition.
+		return initializeSWTPM(ctx, "/tmp/swtpm/")
+	}
+
+	_, err := os.Stat("/boot/swtpm/")
+	if err == nil {
+		return errors.New("swtpm was already configured")
+	}
+
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return errors.New("unable to get swtpm state directory: " + err.Error())
+	}
+
+	err = initializeSWTPM(ctx, "/boot/swtpm/")
+	if err != nil {
+		return err
+	}
+
+	slog.InfoContext(ctx, "Configuring swtpm-backed TPM on first boot, restarting in five seconds")
+
+	time.Sleep(5 * time.Second)
+
+	_ = systemd.SystemReboot(ctx)
+
+	// Prevent further system start up in the half second or so before things reboot.
+	time.Sleep(60 * time.Second)
+
+	return nil
+}
+
+// initializeSWTPM initializes the swtpm state in the given root directory.
+func initializeSWTPM(ctx context.Context, swtpmRoot string) error {
+	// Create the swtpm state directory.
+	err := os.MkdirAll(swtpmRoot, 0o700)
+	if err != nil {
+		return err
+	}
+
+	// Create swtpm_setup config files.
+	err = os.WriteFile("/etc/swtpm_setup.conf", []byte("create_certs_tool = swtpm_localca"), 0o644)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile("/etc/swtpm-localca.options", []byte("--platform-manufacturer IncusOS\n--platform-version 1.0\n--platform-model QEMU"), 0o644)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile("/etc/swtpm-localca.conf", []byte("statedir = /tmp/swtpm_localca/\nsigningkey = /tmp/swtpm_localca/signkey.pem\nissuercert = /tmp/swtpm_localca/issuercert.pem\ncertserial = /tmp/swtpm_localca/certserial"), 0o644)
+	if err != nil {
+		return err
+	}
+
+	// Initialize the TPM.
+	_, err = subprocess.RunCommandContext(ctx, "swtpm_setup", "--tpm2", "--tpmstate", swtpmRoot, "--create-ek-cert", "--create-platform-cert", "--lock-nvram")
+
+	return err
+}
+
+func displayDegradedSecurityWarning(t *tui.TUI, msg string) {
+	modal := t.AddModal("Degraded security warning", "degraded-security-warning")
+
+	for i := range 30 {
+		secondsString := "seconds"
+		if 30-i == 1 {
+			secondsString = "second"
+		}
+
+		modal.Update(fmt.Sprintf("[red]WARNING:[white] %s will result in a degraded security state.\nContinuing in %d %s...", msg, 30-i, secondsString))
+
+		time.Sleep(1 * time.Second)
+	}
+
+	modal.Done()
 }

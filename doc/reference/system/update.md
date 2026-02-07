@@ -28,38 +28,26 @@ IncusOSはシステムが更新をチェックし適用する時間帯を制限�
 
 毎日10pm～6amの間に更新を許可する：
 
-```
-{
-  "config": {
-    "maintenance_windows": [
-      {
-        "start_hour": 22,
-        "start_minute": 0,
-        "end_hour": 6,
-        "end_minute": 0
-      }
-    ]
-  }
-}
+```yaml
+config:
+  maintenance_windows:
+  - start_hour: 22
+    start_minute: 0
+    end_hour: 6
+    end_minute: 0
 ```
 
 週末にのみ更新を許可する：
 
-```
-{
-  "config": {
-    "maintenance_windows": [
-      {
-        "start_day_of_week": "Saturday",
-        "start_hour": 0,
-        "start_minute": 0,
-        "end_day_of_week": "Sunday",
-        "end_hour": 23,
-        "end_minute": 59
-      }
-    ]
-  }
-}
+```yaml
+config:
+  maintenance_windows:
+  - start_day_of_week: "Saturday"
+    start_hour: 0
+    start_minute: 0
+    end_day_of_week: "Sunday"
+    end_hour: 23
+    end_minute: 59
 ```
 
 ## 更新を手動でチェック

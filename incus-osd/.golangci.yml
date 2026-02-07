@@ -16,6 +16,7 @@ linters:
     - lll
     - maintidx
     - mnd
+    - nolintlint
     - testpackage
     - unparam
     - varnamelen
@@ -57,6 +58,11 @@ linters:
           disabled: true
         - name: nested-structs
           disabled: true
+        - name: confusing-results
+          disabled: true
+        - name: function-result-limit
+          arguments:
+            - 8
 
     tagliatelle:
       case:

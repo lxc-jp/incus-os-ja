@@ -1,8 +1,11 @@
 package api
 
+import "time"
+
 // SystemStorageConfig represents additional configuration for the system's local storage.
 type SystemStorageConfig struct {
-	Pools []SystemStoragePool `json:"pools,omitempty" yaml:"pools,omitempty"`
+	ScrubSchedule string              `json:"scrub_schedule" yaml:"scrub_schedule"`
+	Pools         []SystemStoragePool `incusos:"-"           json:"pools,omitempty" yaml:"pools,omitempty"`
 }
 
 // SystemStorageState represents additional state for the system's local storage.
@@ -31,15 +34,16 @@ type SystemStoragePool struct {
 	Log     []string `json:"log,omitempty"   yaml:"log,omitempty"`
 
 	// Read-only fields returned from the server with additional pool information.
-	State                     string                    `json:"state"                         yaml:"state"`
-	EncryptionKeyStatus       string                    `json:"encryption_key_status"         yaml:"encryption_key_status"`
-	DevicesDegraded           []string                  `json:"devices_degraded,omitempty"    yaml:"devices_degraded,omitempty"`
-	CacheDegraded             []string                  `json:"cache_degraded,omitempty"      yaml:"cache_degraded,omitempty"`
-	LogDegraded               []string                  `json:"log_degraded,omitempty"        yaml:"log_degraded,omitempty"`
-	RawPoolSizeInBytes        int                       `json:"raw_pool_size_in_bytes"        yaml:"raw_pool_size_in_bytes"`
-	UsablePoolSizeInBytes     int                       `json:"usable_pool_size_in_bytes"     yaml:"usable_pool_size_in_bytes"`
-	PoolAllocatedSpaceInBytes int                       `json:"pool_allocated_space_in_bytes" yaml:"pool_allocated_space_in_bytes"`
-	Volumes                   []SystemStoragePoolVolume `json:"volumes"                       yaml:"volumes"`
+	State                     string                        `json:"state"                         yaml:"state"`
+	LastScrub                 *SystemStoragePoolScrubStatus `json:"last_scrub,omitempty"          yaml:"last_scrub,omitempty,omitempty"`
+	EncryptionKeyStatus       string                        `json:"encryption_key_status"         yaml:"encryption_key_status"`
+	DevicesDegraded           []string                      `json:"devices_degraded,omitempty"    yaml:"devices_degraded,omitempty"`
+	CacheDegraded             []string                      `json:"cache_degraded,omitempty"      yaml:"cache_degraded,omitempty"`
+	LogDegraded               []string                      `json:"log_degraded,omitempty"        yaml:"log_degraded,omitempty"`
+	RawPoolSizeInBytes        int                           `json:"raw_pool_size_in_bytes"        yaml:"raw_pool_size_in_bytes"`
+	UsablePoolSizeInBytes     int                           `json:"usable_pool_size_in_bytes"     yaml:"usable_pool_size_in_bytes"`
+	PoolAllocatedSpaceInBytes int                           `json:"pool_allocated_space_in_bytes" yaml:"pool_allocated_space_in_bytes"`
+	Volumes                   []SystemStoragePoolVolume     `json:"volumes"                       yaml:"volumes"`
 }
 
 // SystemStoragePoolVolume represents a single IncusOS-managed volume in a pool.
@@ -48,6 +52,27 @@ type SystemStoragePoolVolume struct {
 	UsageInBytes int    `json:"usage_in_bytes" yaml:"usage_in_bytes"`
 	QuotaInBytes int    `json:"quota_in_bytes" yaml:"quota_in_bytes"`
 	Use          string `json:"use"            yaml:"use"`
+}
+
+// SystemStoragePoolScrubState represents the state of a scan in a pool.
+type SystemStoragePoolScrubState string
+
+const (
+	// ScrubUnknown represents and unknown scrub status.
+	ScrubUnknown SystemStoragePoolScrubState = "UNKNOWN"
+	// ScrubInProgress represents that the scrub is in progress.
+	ScrubInProgress SystemStoragePoolScrubState = "IN_PROGRESS"
+	// ScrubFinished represents that the scrub has finished.
+	ScrubFinished SystemStoragePoolScrubState = "FINISHED"
+)
+
+// SystemStoragePoolScrubStatus represents the status of a scrub in a pool.
+type SystemStoragePoolScrubStatus struct {
+	State     SystemStoragePoolScrubState `json:"state"`
+	StartTime time.Time                   `json:"start_time"`
+	EndTime   time.Time                   `json:"end_time"`
+	Progress  string                      `json:"progress"`
+	Errors    int                         `json:"errors"`
 }
 
 // SystemStorageDrive defines a struct that holds information about a specific drive.
@@ -68,8 +93,18 @@ type SystemStorageDrive struct {
 
 // SystemStorageDriveSMART defines a struct to return basic SMART information about a specific device.
 type SystemStorageDriveSMART struct {
-	Enabled bool `json:"enabled" yaml:"enabled"`
-	Passed  bool `json:"passed"  yaml:"passed"`
+	Enabled bool   `json:"enabled"         yaml:"enabled"`
+	Passed  bool   `json:"passed"          yaml:"passed"`
+	Error   string `json:"error,omitempty" yaml:"error,omitempty"`
+
+	PowerOnHours       int `json:"power_on_hours,omitempty"      yaml:"power_on_hours,omitempty"`
+	DataUnitsRead      int `json:"data_units_read,omitempty"     yaml:"data_units_read,omitempty"`
+	DataUnitsWritten   int `json:"data_units_written,omitempty"  yaml:"data_units_written,omitempty"`
+	AvailableSpare     int `json:"available_spare,omitempty"     yaml:"available_spare,omitempty"`
+	PercentageUsed     int `json:"percentage_used,omitempty"     yaml:"percentage_used,omitempty"`
+	RawReadErrorRate   int `json:"raw_read_error_rate,omitempty" yaml:"raw_read_error_rate,omitempty"`
+	SeekErrorRate      int `json:"seek_error_rate,omitempty"     yaml:"seek_error_rate,omitempty"`
+	ReallocatedSectors int `json:"reallocated_sectors,omitempty" yaml:"reallocated_sectors,omitempty"`
 }
 
 // SystemStorageWipe defines a struct with information about what drive to wipe.

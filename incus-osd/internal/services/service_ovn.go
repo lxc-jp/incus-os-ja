@@ -73,10 +73,12 @@ func (n *OVN) Update(ctx context.Context, req any) error {
 		}
 	}
 
-	// Configure the service.
-	err := n.configure(ctx)
-	if err != nil {
-		return err
+	// Configure the service if enabled.
+	if newState.Config.Enabled {
+		err := n.configure(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -103,8 +105,16 @@ func (n *OVN) Start(ctx context.Context) error {
 		return nil
 	}
 
+	// Disable writing log output to files, and bump syslog level. Because of how the systemd services
+	// are defined, empty log files will be created under /var/log/openvswitch/.
+	err := os.WriteFile("/etc/default/openvswitch-switch", []byte(`OVS_CTL_OPTS='--ovsdb-server-options="-vsyslog:info -vfile:off" --ovs-vswitchd-options="-vsyslog:info -vfile:off"'
+`), 0o644)
+	if err != nil {
+		return err
+	}
+
 	// Start OVS.
-	err := systemd.StartUnit(ctx, "ovs-vswitchd.service")
+	err = systemd.StartUnit(ctx, "ovs-vswitchd.service")
 	if err != nil {
 		return err
 	}
@@ -126,13 +136,14 @@ func (*OVN) Struct() any {
 // configure takes care of configuring the running OVS and (re)spawning the OVN controller.
 func (n *OVN) configure(ctx context.Context) error {
 	// Apply the OVS configuration.
-	args := []string{"set", "open_vswitch", "."}
-
-	args = append(args, "external_ids:hostname="+n.state.Hostname())
-	args = append(args, "external_ids:ovn-remote="+n.state.Services.OVN.Config.Database)
-	args = append(args, "external_ids:ovn-encap-type="+n.state.Services.OVN.Config.TunnelProtocol)
-	args = append(args, "external_ids:ovn-encap-ip="+n.state.Services.OVN.Config.TunnelAddress)
-	args = append(args, fmt.Sprintf("external_ids:ovn-is-interconn=%v", n.state.Services.OVN.Config.ICChassis))
+	args := []string{
+		"set", "open_vswitch", ".",
+		"external_ids:hostname=" + n.state.Hostname(),
+		"external_ids:ovn-remote=" + n.state.Services.OVN.Config.Database,
+		"external_ids:ovn-encap-type=" + n.state.Services.OVN.Config.TunnelProtocol,
+		"external_ids:ovn-encap-ip=" + n.state.Services.OVN.Config.TunnelAddress,
+		fmt.Sprintf("external_ids:ovn-is-interconn=%v", n.state.Services.OVN.Config.ICChassis),
+	}
 
 	_, err := subprocess.RunCommand("ovs-vsctl", args...)
 	if err != nil {

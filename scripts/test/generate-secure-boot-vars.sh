@@ -9,40 +9,44 @@
 
 set -e
 
-OS_NAME="TestOS"
 UUID="433f8160-9ab6-4407-8e38-12d70e1d54e5"
 
-if [ -d certs/efi/ ]; then
+if [ -d certs/efi/updates/ ]; then
     echo "Test secure boot signed keys already appear to have been generated, exiting."
     exit 0
 fi
 
-mkdir -p certs/efi/
+# PK
+openssl x509 -in "incus-osd/certs/files/secureboot-PK-R1.crt" -out incus-osd/certs/files/secureboot-PK-R1.der -outform DER
+cert-to-efi-sig-list -g "${UUID}" "incus-osd/certs/files/secureboot-PK-R1.crt" incus-osd/certs/files/PK.esl
+sign-efi-sig-list -g "${UUID}" -c "incus-osd/certs/files/secureboot-PK-R1.crt" -k "certs/secureboot-PK-R1.key" PK incus-osd/certs/files/PK.esl incus-osd/certs/files/PK.auth
 
-# PK CA
-cert-to-efi-sig-list -g "${UUID}" "certs/cas/${OS_NAME}-pk-ca.crt" certs/efi/PK.esl
-sign-efi-sig-list -g "${UUID}" -c "certs/cas/${OS_NAME}-pk-ca.crt" -k "certs/cas/${OS_NAME}-pk-ca.key" PK certs/efi/PK.esl certs/efi/PK.auth
-
-# KEK CAs
-cert-to-efi-sig-list -g "${UUID}" "certs/cas/${OS_NAME}-kek-ca1.crt" "certs/efi/${OS_NAME}-kek-ca1.esl"
-cert-to-efi-sig-list -g "${UUID}" "certs/cas/${OS_NAME}-kek-ca2.crt" "certs/efi/${OS_NAME}-kek-ca2.esl"
-cat "certs/efi/${OS_NAME}-kek-ca1.esl" "certs/efi/${OS_NAME}-kek-ca2.esl" > certs/efi/KEK.esl
-sign-efi-sig-list -g "${UUID}" -c "certs/cas/${OS_NAME}-pk-ca.crt" -k "certs/cas/${OS_NAME}-pk-ca.key" KEK certs/efi/KEK.esl certs/efi/KEK.auth
+# KEKs
+openssl x509 -in "incus-osd/certs/files/secureboot-KEK-R1.crt" -out incus-osd/certs/files/secureboot-KEK-R1.der -outform DER
+openssl x509 -in "incus-osd/certs/files/secureboot-KEK-R2.crt" -out incus-osd/certs/files/secureboot-KEK-R2.der -outform DER
+cert-to-efi-sig-list -g "${UUID}" "incus-osd/certs/files/secureboot-KEK-R1.crt" "incus-osd/certs/files/KEK-1.esl"
+cert-to-efi-sig-list -g "${UUID}" "incus-osd/certs/files/secureboot-KEK-R2.crt" "incus-osd/certs/files/KEK-2.esl"
+cat "incus-osd/certs/files/KEK-1.esl" "incus-osd/certs/files/KEK-2.esl" > incus-osd/certs/files/KEK.esl
+sign-efi-sig-list -g "${UUID}" -c "incus-osd/certs/files/secureboot-PK-R1.crt" -k "certs/secureboot-PK-R1.key" KEK incus-osd/certs/files/KEK.esl incus-osd/certs/files/KEK.auth
 
 # First two trusted secure boot keys
-cert-to-efi-sig-list -g "${UUID}" "certs/${OS_NAME}-secure-boot-1.crt" "certs/efi/${OS_NAME}-secure-boot-1.esl"
-cert-to-efi-sig-list -g "${UUID}" "certs/${OS_NAME}-secure-boot-2.crt" "certs/efi/${OS_NAME}-secure-boot-2.esl"
-cat "certs/efi/${OS_NAME}-secure-boot-1.esl" "certs/efi/${OS_NAME}-secure-boot-2.esl" > certs/efi/db.esl
-sign-efi-sig-list -g "${UUID}" -c "certs/cas/${OS_NAME}-kek-ca1.crt" -k "certs/cas/${OS_NAME}-kek-ca1.key" db certs/efi/db.esl certs/efi/db.auth
+openssl x509 -in "incus-osd/certs/files/secureboot-DB-1-R1.crt" -out incus-osd/certs/files/secureboot-DB-1-R1.der -outform DER
+openssl x509 -in "incus-osd/certs/files/secureboot-DB-2-R1.crt" -out incus-osd/certs/files/secureboot-DB-2-R1.der -outform DER
+cert-to-efi-sig-list -g "${UUID}" "incus-osd/certs/files/secureboot-DB-1-R1.crt" "incus-osd/certs/files/DB-1.esl"
+cert-to-efi-sig-list -g "${UUID}" "incus-osd/certs/files/secureboot-DB-2-R1.crt" "incus-osd/certs/files/DB-2.esl"
+cat "incus-osd/certs/files/DB-1.esl" "incus-osd/certs/files/DB-2.esl" > incus-osd/certs/files/DB.esl
+sign-efi-sig-list -g "${UUID}" -c "incus-osd/certs/files/secureboot-KEK-R1.crt" -k "certs/secureboot-KEK-R1.key" db incus-osd/certs/files/DB.esl incus-osd/certs/files/DB.auth
+
+find incus-osd/certs/files/ -name '*.esl' -delete
 
 mkdir -p certs/efi/updates/
 
 # Prepare a db update
-FINGERPRINT=$(openssl x509 -in "certs/${OS_NAME}-secure-boot-3.crt" -noout -fingerprint -sha256 | cut -d '=' -f2 | tr -d ':')
-cert-to-efi-sig-list -g "${UUID}" "certs/${OS_NAME}-secure-boot-3.crt" "certs/efi/updates/db_${FINGERPRINT}.esl"
-sign-efi-sig-list -g "${UUID}" -a -c "certs/cas/${OS_NAME}-kek-ca1.crt" -k "certs/cas/${OS_NAME}-kek-ca1.key" db "certs/efi/updates/db_${FINGERPRINT}.esl" "certs/efi/updates/db_${FINGERPRINT}.auth"
+FINGERPRINT=$(openssl x509 -in "incus-osd/certs/files/secureboot-DB-3-R1.crt" -noout -fingerprint -sha256 | cut -d '=' -f2 | tr -d ':')
+cert-to-efi-sig-list -g "${UUID}" "incus-osd/certs/files/secureboot-DB-3-R1.crt" "certs/efi/updates/db_${FINGERPRINT}.esl"
+sign-efi-sig-list -g "${UUID}" -a -c "incus-osd/certs/files/secureboot-KEK-R1.crt" -k "certs/secureboot-KEK-R1.key" db "certs/efi/updates/db_${FINGERPRINT}.esl" "certs/efi/updates/db_${FINGERPRINT}.auth"
 
 # Prepare a dbx update
-FINGERPRINT=$(openssl x509 -in "certs/${OS_NAME}-secure-boot-4.crt" -noout -fingerprint -sha256 | cut -d '=' -f2 | tr -d ':')
-cert-to-efi-sig-list -g "${UUID}" "certs/${OS_NAME}-secure-boot-4.crt" "certs/efi/updates/dbx_${FINGERPRINT}.esl"
-sign-efi-sig-list -g "${UUID}" -a -c "certs/cas/${OS_NAME}-kek-ca1.crt" -k "certs/cas/${OS_NAME}-kek-ca1.key" dbx "certs/efi/updates/dbx_${FINGERPRINT}.esl" "certs/efi/updates/dbx_${FINGERPRINT}.auth"
+FINGERPRINT=$(openssl x509 -in "incus-osd/certs/files/secureboot-DBX-4-R1.crt" -noout -fingerprint -sha256 | cut -d '=' -f2 | tr -d ':')
+cert-to-efi-sig-list -g "${UUID}" "incus-osd/certs/files/secureboot-DBX-4-R1.crt" "certs/efi/updates/dbx_${FINGERPRINT}.esl"
+sign-efi-sig-list -g "${UUID}" -a -c "incus-osd/certs/files/secureboot-KEK-R1.crt" -k "certs/secureboot-KEK-R1.key" dbx "certs/efi/updates/dbx_${FINGERPRINT}.esl" "certs/efi/updates/dbx_${FINGERPRINT}.auth"

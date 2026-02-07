@@ -75,7 +75,7 @@ IncusOSはネストしたコンテナーと仮想マシンを動かす必要が�
 
 ![セキュアブートを有効化](../../images/vsphere-create-vm7.png)
 
-追加オプションのタブで、以下のエントリーを追加します：
+`Advanced Parameters` のタブで、以下のエントリーを追加します：
 
 - `uefi.secureBoot.kekDefault.file0`を`secureboot-KEK-R1.der`に設定
 - `uefi.secureBoot.dbDefault.file0`を`secureboot-2025-R1.der`に設定

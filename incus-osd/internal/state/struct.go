@@ -1,13 +1,13 @@
 package state
 
 import (
-	"net"
+	"errors"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 
 	"github.com/lxc/incus-os/incus-osd/api"
+	"github.com/lxc/incus-os/incus-osd/internal/scheduling"
 )
 
 // SecureBoot represents the current state of Secure Boot key updates applied to the system.
@@ -21,7 +21,7 @@ type OS struct {
 	Name           string `json:"name"`
 	RunningRelease string `json:"running_release"`
 	NextRelease    string `json:"next_release"`
-	SuccessfulBoot bool   `jsno:"successful_boot"`
+	SuccessfulBoot bool   `json:"successful_boot"`
 }
 
 // State represents the on-disk persistent state.
@@ -35,12 +35,16 @@ type State struct {
 
 	UpdateMutex sync.Mutex `json:"-"`
 
+	JobScheduler scheduling.Scheduler `json:"-"`
+
 	// Triggers for daemon actions.
 	TriggerReboot   chan error `json:"-"`
 	TriggerShutdown chan error `json:"-"`
 	TriggerUpdate   chan bool  `json:"-"`
 
-	SecureBoot SecureBoot `json:"secure_boot"`
+	SecureBoot         SecureBoot `json:"secure_boot"`
+	UsingSWTPM         bool       `json:"using_swtpm"`
+	SecureBootDisabled bool       `json:"secure_boot_disabled"`
 
 	Applications map[string]api.Application `json:"applications"`
 
@@ -59,12 +63,28 @@ type State struct {
 	} `json:"services"`
 
 	System struct {
+		Kernel   api.SystemKernel   `json:"kernel"`
 		Logging  api.SystemLogging  `json:"logging"`
 		Network  api.SystemNetwork  `json:"network"`
 		Provider api.SystemProvider `json:"provider"`
 		Security api.SystemSecurity `json:"security"`
 		Update   api.SystemUpdate   `json:"update"`
+		Storage  api.SystemStorage  `json:"storage"`
 	} `json:"system"`
+}
+
+// MachineID returns the system's persistent machine ID.
+func (*State) MachineID() (string, error) {
+	machineID, err := os.ReadFile("/etc/machine-id")
+	if err != nil {
+		return "", err
+	}
+
+	if len(machineID) != 33 {
+		return "", errors.New("invalid length for a machine-id")
+	}
+
+	return strings.TrimSpace(string(machineID)), nil
 }
 
 // Hostname returns the preferred hostname for the system.
@@ -87,64 +107,12 @@ func (s *State) Hostname() string {
 	}
 
 	// Use machine ID if valid.
-	machineID, err := os.ReadFile("/etc/machine-id")
-	if err == nil && len(machineID) == 33 {
+	machineID, err := s.MachineID()
+	if err == nil {
 		// Got what should be a valid UUID, use that.
-		return strings.TrimSpace(string(machineID))
+		return machineID
 	}
 
 	// If all else fails, use the OS name.
 	return s.OS.Name
-}
-
-// ManagementAddress returns the preferred IP address at which to reach this server for management purposes.
-// A nil value is returned if none could be found.
-func (s *State) ManagementAddress() net.IP {
-	if len(s.System.Network.State.Interfaces) == 0 {
-		return nil
-	}
-
-	var (
-		ipv4Address net.IP
-		ipv6Address net.IP
-	)
-
-	for _, iface := range s.System.Network.State.Interfaces {
-		// Skip if missing management role.
-		if !slices.Contains(iface.Roles, api.SystemNetworkInterfaceRoleManagement) {
-			continue
-		}
-
-		for _, address := range iface.Addresses {
-			addrIP := net.ParseIP(address)
-			if addrIP == nil {
-				continue
-			}
-
-			if addrIP.To4() == nil {
-				if ipv6Address == nil {
-					ipv6Address = addrIP
-				}
-			} else {
-				if ipv4Address == nil {
-					ipv4Address = addrIP
-				}
-			}
-		}
-
-		// Break early if we have an IPv6 address as we'll prefer that anyway.
-		if ipv6Address != nil {
-			break
-		}
-	}
-
-	if ipv6Address != nil {
-		return ipv6Address
-	}
-
-	if ipv4Address != nil {
-		return ipv4Address
-	}
-
-	return nil
 }

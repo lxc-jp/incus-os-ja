@@ -7,6 +7,7 @@ IncusOSは管理用デーモンを稼働しています。それはさまざま�
 :maxdepth: 1
 
 バックアップ／リストアー </reference/system/backup>
+カーネル </reference/system/kernel>
 ロギング </reference/system/logging>
 ネットワーク </reference/system/network>
 電源 </reference/system/power>

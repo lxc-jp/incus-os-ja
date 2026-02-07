@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/foxboron/go-uefi/authenticode"
 	"github.com/google/go-eventlog/tcg"
 	"github.com/lxc/incus/v6/shared/subprocess"
 	"github.com/smallstep/pkcs7"
@@ -28,15 +29,13 @@ import (
 //
 // Immediately after a successful reset, the system will be rebooted.
 func ForceUpdatePCRBindings(ctx context.Context, osName string, osVersion string, luksPassword string) error {
-	// First, make sure Secure Boot is enabled so we can have some confidence in the current running system.
+	// Determine Secure Boot state.
 	sbEnabled, err := Enabled()
 	if err != nil {
 		return err
-	} else if !sbEnabled {
-		return errors.New("refusing to reset TPM encryption bindings because Secure Boot is disabled")
 	}
 
-	// Second, refuse to do anything if the TPM can unlock all LUKS volumes.
+	// Refuse to do anything if the TPM can unlock all LUKS volumes.
 	luksVolumes, err := util.GetLUKSVolumePartitions()
 	if err != nil {
 		return err
@@ -59,9 +58,14 @@ func ForceUpdatePCRBindings(ctx context.Context, osName string, osVersion string
 
 	// WARNING: here be dragons as we're going to be blindly trusting inputs that in theory could be attacker-controlled.
 
-	// Get the current PCR7 value directly from the TPM. Don't bother replaying the event log and computing the value,
-	// since it should be the same.
-	pcr7, err := readPCR7()
+	// Get the current PCR4 and PCR7 values directly from the TPM. Don't bother replaying the event log and computing the
+	// values, since they should be the same.
+	pcr4, err := ReadPCR("4")
+	if err != nil {
+		return err
+	}
+
+	pcr7, err := ReadPCR("7")
 	if err != nil {
 		return err
 	}
@@ -79,10 +83,18 @@ func ForceUpdatePCRBindings(ctx context.Context, osName string, osVersion string
 	}
 
 	// Finally, we're ready to update the TPM bindings for each LUKS volume.
+	pcr4String := hex.EncodeToString(pcr4)
 	pcr7String := hex.EncodeToString(pcr7)
 
+	pcrBindingArg := "--tpm2-pcrs=7:sha256=" + pcr7String
+
+	// When Secure Boot is disabled, we also bind to PCR4.
+	if !sbEnabled {
+		pcrBindingArg = "--tpm2-pcrs=4:sha256=" + pcr4String + "+7:sha256=" + pcr7String
+	}
+
 	for _, volume := range luksVolumes {
-		_, _, err := subprocess.RunCommandSplit(ctx, append(os.Environ(), "PASSWORD="+luksPassword), nil, "systemd-cryptenroll", "--tpm2-device=auto", "--wipe-slot=tpm2", "--tpm2-pcrlock=", "--tpm2-pcrs=7:sha256="+pcr7String, volume)
+		_, _, err := subprocess.RunCommandSplit(ctx, append(os.Environ(), "PASSWORD="+luksPassword), nil, "systemd-cryptenroll", "--tpm2-device=auto", "--wipe-slot=tpm2", "--tpm2-pcrlock=", pcrBindingArg, volume)
 		if err != nil {
 			return err
 		}
@@ -97,24 +109,172 @@ func ForceUpdatePCRBindings(ctx context.Context, osName string, osVersion string
 	return nil
 }
 
-// readPCR7 returns the current PCR7 value from the TPM.
-func readPCR7() ([]byte, error) {
-	pcr7File, err := os.Open("/sys/class/tpm/tpm0/pcr-sha256/7")
+// ReadPCR returns the current PCR value from the TPM.
+func ReadPCR(index string) ([]byte, error) {
+	pcrFile, err := os.Open("/sys/class/tpm/tpm0/pcr-sha256/" + index) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
-	defer pcr7File.Close()
+	defer pcrFile.Close()
 
-	actualPCR7Buf := make([]byte, 64)
+	actualPCRBuf := make([]byte, 64)
 
-	numBytes, err := io.ReadFull(pcr7File, actualPCR7Buf)
+	numBytes, err := io.ReadFull(pcrFile, actualPCRBuf)
 	if err != nil {
 		return nil, err
 	} else if numBytes != 64 {
-		return nil, fmt.Errorf("only read %d bytes from /sys/class/tpm/tpm0/pcr-sha256/7", numBytes)
+		return nil, fmt.Errorf("only read %d bytes from /sys/class/tpm/tpm0/pcr-sha256/"+index, numBytes)
 	}
 
-	return hex.DecodeString(string(actualPCR7Buf))
+	return hex.DecodeString(string(actualPCRBuf))
+}
+
+// computeNewPCR4Value will compute the future PCR4 value after the systemd-boot or UKI EFI images are updated.
+// IMPORTANT: It is assumed that the provided TPM event log has already been validated.
+func computeNewPCR4Value(eventLog []tcg.Event, newUkiImage string) ([]byte, error) {
+	actualPCR4Buf := make([]byte, 32)
+
+	for _, e := range eventLog {
+		// We only care about PCR4.
+		if e.Index == 4 { //nolint:nestif
+			switch e.Type { //nolint:exhaustive
+			case tcg.EFIBootServicesApplication:
+				// Boot services application's data is an array of DevicePaths, but the digest is the hash of the
+				// authenticode for the referenced PE binary.
+				r := bytes.NewReader(e.Data)
+
+				efiImageLoad, err := tcg.ParseEFIImageLoad(r)
+				if err != nil {
+					return nil, err
+				}
+
+				devPaths, err := efiImageLoad.DevicePath()
+				if err != nil {
+					return nil, err
+				}
+
+				foundPE := false
+
+				// Iterate through the device paths for this event, until we get to the actual PE binary.
+				for _, dev := range devPaths {
+					// EFI Vendor-defined data
+					if dev.Type == tcg.MediaDevice && dev.Subtype == 3 {
+						// When SeucreBoot is disabled, systemd makes an additional PCR4 measurement of the .linux section
+						// from the UKI.
+						if bytes.Equal(systemdStubGUID[:], dev.Data) {
+							buf, err := computeVmlinuzAuthenticodeHash(newUkiImage)
+							if err != nil {
+								return nil, err
+							}
+
+							// Extend the PCR4 value.
+							actualPCR4Buf, err = extendPCRValue(actualPCR4Buf, buf, false)
+							if err != nil {
+								return nil, err
+							}
+
+							foundPE = true
+
+							break
+						}
+					}
+
+					// EFI File Path
+					if dev.Type == tcg.MediaDevice && dev.Subtype == 4 {
+						peName, err := util.UTF16ToString(dev.Data)
+						if err != nil {
+							return nil, err
+						}
+
+						// Convert the EFI-style path to the real path.
+						peName = "/boot" + strings.ReplaceAll(peName, "\\", "/")
+
+						// If the PE binary is the UKI, override the filename with the one provided.
+						// This is needed when computing PCR4 for a new OS update.
+						if strings.HasPrefix(peName, "/boot/EFI/Linux/") {
+							peName = newUkiImage
+						}
+
+						// Open the PE binary from disk and compute its authenticode.
+						peFile, err := os.Open(peName) //nolint:gosec
+						if err != nil {
+							// If the referenced binary doesn't exist under /boot/, there's nothing to do.
+							if os.IsNotExist(err) {
+								break
+							}
+
+							return nil, err
+						}
+						defer peFile.Close() //nolint:revive
+
+						authenticodeContents, err := authenticode.Parse(peFile)
+						if err != nil {
+							return nil, err
+						}
+
+						// Extend the PCR4 value.
+						actualPCR4Buf, err = extendPCRValue(actualPCR4Buf, authenticodeContents.Hash(crypto.SHA256), false)
+						if err != nil {
+							return nil, err
+						}
+
+						foundPE = true
+
+						break
+					}
+				}
+
+				// If we didn't find the PE binary under /boot/, it's likely some sort of BMC early boot binary measured by the TPM
+				// before booting the configured EFI application (ie, systemd-boot -> IncusOS UKI). In this case, since there's no
+				// actual PE binary we can read, re-use the existing digest from the event log.
+				if !foundPE {
+					actualPCR4Buf, err = extendPCRValue(actualPCR4Buf, e.ReplayedDigest(), false)
+					if err != nil {
+						return nil, err
+					}
+				}
+			default:
+				// For all other types, re-use the existing digest from the event log.
+				var err error
+
+				actualPCR4Buf, err = extendPCRValue(actualPCR4Buf, e.ReplayedDigest(), false)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	return actualPCR4Buf, nil
+}
+
+func computeVmlinuzAuthenticodeHash(ukiFile string) ([]byte, error) {
+	// Extract vmlinuz from the UKI.
+	peFile, err := pe.Open(ukiFile)
+	if err != nil {
+		return nil, err
+	}
+	defer peFile.Close()
+
+	vmlinuzSection := peFile.Section(".linux")
+	if vmlinuzSection == nil {
+		return nil, fmt.Errorf("failed to read .linux section from '%s'", ukiFile)
+	}
+
+	vmlinuzData, err := vmlinuzSection.Data()
+	if err != nil {
+		return nil, err
+	} else if len(vmlinuzData) != int(vmlinuzSection.Size) {
+		return nil, fmt.Errorf("only read %d of %d bytes while getting .linux section from '%s'", len(vmlinuzData), vmlinuzSection.Size, ukiFile)
+	}
+
+	// Get the authenticode of the vmlinuz section. We use VirtualSize, since the section is padded with null bytes.
+	authenticodeContents, err := authenticode.Parse(bytes.NewReader(vmlinuzData[0:vmlinuzSection.VirtualSize]))
+	if err != nil {
+		return nil, err
+	}
+
+	return authenticodeContents.Hash(crypto.SHA256), nil
 }
 
 // computeNewPCR7Value will compute the future PCR7 value after the KEK, db, and/or dbx EFI variables are updated.
@@ -239,7 +399,7 @@ func computeExpectedVariableAuthority(rawBuf []byte) ([]byte, error) {
 	}
 
 	// Find the matching certificate.
-	index := slices.IndexFunc(certs, func(c x509.Certificate) bool {
+	index := slices.IndexFunc(certs, func(c *x509.Certificate) bool {
 		return c.Equal(existingCert)
 	})
 	if index < 0 {
@@ -249,21 +409,22 @@ func computeExpectedVariableAuthority(rawBuf []byte) ([]byte, error) {
 	// Update the variable's contents with the expected certificate value.
 	var newBuf bytes.Buffer
 
-	_, err = newBuf.Write(v.VariableData[:16]) // The first 16 bytes are a header; we shouldn't need to care about updating it since we're replacing a certificate with the same type/size as the existing one.
+	_, err = newBuf.Write(v.VariableData[:16]) // The first 16 bytes are the signature owner GUID, which shouldn't change.
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = newBuf.Write(certs[index].Raw)
+	_, err = newBuf.Write(certs[index].Raw) // Write the new certificate's contents.
 	if err != nil {
 		return nil, err
 	}
 
-	if newBuf.Len() != len(v.VariableData) {
-		return nil, fmt.Errorf("resulting buffer size (%d) != expected size (%d)", newBuf.Len(), len(v.VariableData))
+	if newBuf.Len() != 16+len(certs[index].Raw) {
+		return nil, fmt.Errorf("resulting buffer size (%d) != expected size (%d)", newBuf.Len(), 16+len(certs[index].Raw))
 	}
 
 	// Update in-memory values.
+	v.Header.VariableDataLength = uint64(newBuf.Len()) //nolint:gosec
 	v.VariableData = newBuf.Bytes()
 
 	// Get the updated buffer and use for PCR calculation.
