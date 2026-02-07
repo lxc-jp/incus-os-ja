@@ -10,4 +10,4 @@
 
 * `enabled`: `true`の場合、Multipathサービスを有効化します。
 
-* `wwns`: マルチパスを設定するための{abbr}`WWN (World Wide Name)`の配列。
+* `wwns`: マルチパスを設定するためのストレージデバイスの{abbr}`WWN (World Wide Name)`の配列。これはコロンの区切り文字なしの小文字の16進数の文字列で、通常`3`の接頭辞がつきます。正しい形式は`incus admin os system storage show`の出力の`id`フィールドの下に、例えば`/dev/disk/by-id/scsi-<wwn>`のように表示されます。

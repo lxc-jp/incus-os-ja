@@ -11,8 +11,10 @@
 サービス </reference/services>
 システム設定 </reference/system>
 API </reference/api>
+セキュアブートなしでのインストール </reference/installing-without-secureboot>
+TPMなしでのインストール </reference/installing-without-tpm>
 パーティショニング手法 </reference/partitioning-scheme>
 リカバリー </reference/recovery>
-シード </reference/seed>
 セキュリティー </reference/security>
+シード </reference/seed>
 ```

@@ -43,7 +43,7 @@ IncusOSは、Incusの上にインフラストラクチャーを構築・稼働�
 
 管理機能の特徴：
 
-- オペレーションセンターを使った集中管理
+- [オペレーションセンター](https://docs.futurfusion.io/operations-center/main/)
 - メインのOS設定と個々のアプリケーションデータの両方のバックアップ／リストアー
 - OS全体または個々のアプリケーションのファクトリーリセット
 - 柔軟なアップデート管理
@@ -51,7 +51,7 @@ IncusOSは、Incusの上にインフラストラクチャーを構築・稼働�
 ## 技術的な詳細
 IncusOSは、Debian 13の上に私たちが独自にビルドしたIncusとカーネルを使って構成しています。
 
-Incusそのものを動かすのに加えて、Incusはオペレーションセンターとマイグレーションマネージャーを動かすための基礎となるOSとしても使えます。
+Incusそのものを動かすのに加えて、Incusは[オペレーションセンター](https://docs.futurfusion.io/operations-center/main/)と[マイグレーションマネージャー](https://docs.futurfusion.io/migration-manager/main/)を動かすための基礎となるOSとしても使えます。
 これにより、VMwareや似たような環境からIncusへの移行を容易にします。
 
 私たちはsystemdのモダンなOS機能を広範囲に使って、イメージを構築し、OSの更新を処理し、初回ブート時のパーティション作成やTPMを使った暗号化などに対処しています。

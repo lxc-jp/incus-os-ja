@@ -15,13 +15,10 @@
 :maxdepth: 1
 
 ハードウェアー上でのインストール </getting-started/installation/physical>
+Hyper-V上でのインストール </getting-started/installation/virtual-hyperv>
 Incus上でのインストール </getting-started/installation/virtual-incus>
 libvirt上でのインストール </getting-started/installation/virtual-libvirt>
 Proxmox上でのインストール </getting-started/installation/virtual-proxmox>
 VirtualBox上でのインストール </getting-started/installation/virtual-virtualbox>
 VMware上でのインストール </getting-started/installation/virtual-vmware>
 ```
-
-## サポートされないプラットフォーム
-
-現在のところ、MicrosoftのHyper-V上にIncusOSインストールはできません。これは仮想プラットフォームがカスタムのセキュアブートキーをサポートしないためです。

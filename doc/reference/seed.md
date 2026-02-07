@@ -29,6 +29,8 @@ IncusOSは起動時にシードデータがまだ存在する場合は混乱す�
 
 - `force_reboot`: trueの場合、インストール後にインストールメディアの除去を待たずに再起動します。
 
+- `security`: 劣化したセキュリティー状態でIncusOSを実行できるようにするオプショナルな構造体。警告：これは何をしているかとその結果生じるセキュリティーの問題を正確に把握しているのでなければ、行うべきではありません。
+
 - `target`: オプショナルでインストールのターゲットデバイスを決定するのに使うセレクター。指定されない場合、IncusOSはインストール時に未使用のドライブが1つあることを期待します。
 
 ### `applications.{json,yml,yaml}`
@@ -67,3 +69,8 @@ IncusOSは起動時にシードデータがまだ存在する場合は混乱す�
 このファイルはプロバイダーを設定するためのプリシード情報を指定します。これはIncusOSの更新とアプリケーションを取得するのに使われます。
 
 使用される構造体は[provider APIの構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_provider.go)です。
+
+### `update.{json,yml,yaml}`
+このファイルはシステムの更新設定を提供します。
+
+使用される構造体は[update APIの構造体](https://github.com/lxc/incus-os/blob/main/incus-osd/api/system_update.go)です。

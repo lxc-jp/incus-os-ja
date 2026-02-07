@@ -13,18 +13,35 @@ USBイメージを使う場合、デバイスに直接書き込むようにし�
 
 ## BIOSを設定
 
-ベンダーごとにファームウェアー設定のレイアウトは異なりますが、一般に以下の3つを設定します：
+ベンダーごとにファームウェアー設定のレイアウトは異なりますが、一般に主に設定する項目は以下のとおりです：
 
 - RAIDモード設定オプションを無効にする（プラットフォームによってはIncusOSのブートが失敗します）
 - TPM 2.0デバイスを有効にする（まだ有効でない場合）
 - セキュアブートを有効にして設定する
+   - "custom"セキュリティーポリシーを使う
+   - 利用可能なら、システムが"user"モードになっていることを確認する
+   - IncusOSのキーをロード：
+      - KEKからすべてを削除し、IncusOS KEKのキーをロードする
+      - DBからできるだけ多くのキーを削除し、IncusOS DBのキーをロードする
 - インストールメディアから起動するようにブートオーダーを変更する
 
-![セキュアブートの概要](../../images/physical-secureboot-overview.png)
+```{note}
+サーバーによってはNVMEやストレージコントローラーから起動するためには特定のセキュアブートキーがロードされている必要があります。
+たいていはMicrosoft UEFI CA キーに依存しており、そのためこれらのキーをDB内に残しておく必要があります。
+```
+
+別の方法として"setup"モードを使ってIncusOSのセキュアブートキーを手動でロードすることもできます。
+これは事実上すべてのキーをクリアーし、IncusOSが初回のブート時にプロビジョンを行うことになります。
+便利な半面、どのキーをロードするかの制御はしにくくなりアドインカードと干渉する可能性があります。
+
+````{tabs}
+```{group-tab} Generic
 
 セキュアブートが一番厄介で設定方法はベンダーごとに異なります。
 
 セキュアブートに関しては2つの主なオプションがあります：
+
+![Aptio - セキュアブート](../../images/aptio-secureboot.png)
 
 - いくつかの既存のキーを手動でクリアーしてIncusOSのキーを登録する
 - すべてをクリアーしてシステムをセットアップモードにする
@@ -35,11 +52,77 @@ USBイメージを使う場合、デバイスに直接書き込むようにし�
 
 これらのシナリオでは、代わりにIncuSOSのKEKとDBの鍵を手動でインストールが必要です。ただし、ファームウェアーがこのためのオプションを提供していることが前提となります。
 
-![セキュアブートの鍵](../../images/physical-secureboot-keys.png)
+![Aptio - 概要](../../images/aptio-key-overview.png)
+![Aptio - KEK](../../images/aptio-key-kek.png)
+![Aptio - DB](../../images/aptio-key-db.png)
 
 インストールメディアに`keys`フォルダーがあり、そこに`.der`形式の登録が必要な3つの鍵が含まれています。手動での登録方法はベンダーによってかなり異なります。
 
 セキュアブートの設定が完了したら、ブートオーダーのページでシステムがインストールメディアから起動するように変更し、最後に設定を保存してシステムを再起動します。
+```
+
+```{group-tab} Asus
+AsusのサーバーはAMI Aptioベースのファームウェアーを標準的なレイアウトで使用しています。
+
+これらのサーバーは通常のブート操作を処理するのに追加のセキュアブートキーをロードする必要はなく、結果として、すべてのDBキーを削除しても安全です。
+
+![Aptio - Secure Boot](../../images/aptio-secureboot.png)
+![Aptio - Overview](../../images/aptio-key-overview.png)
+![Aptio - KEK](../../images/aptio-key-kek.png)
+![Aptio - DB](../../images/aptio-key-db.png)
+```
+
+```{group-tab} Cisco
+Cisco UCSサーバーはセキュアブートの完全な設定は提供していません。
+代わりに限られた数の出来合いのセキュアブート設定があるだけであり、そのためIncusOSとは互換性がありません。
+
+これらのサーバーにIncusOSをインストールするには、セキュアブートを無効にし、代わりにTPMのみのブートセキュリティーを使うように設定したIncusOSイメージを使う必要があります。
+```
+
+```{group-tab} DELL
+DELLのサーバーはセキュアブートの完全な設定を提供します。
+
+これらのサーバーのNVMEとストレージコントローラーはブートするためにMicrosoft UEFI CAに依存していることが多く、結果としてこれらのキーはDBに残しておくのが良いです。
+
+![DELL - Secure Boot](../../images/dell-secureboot.png)
+![DELL - KEK](../../images/dell-key-kek.png)
+![DELL - DB](../../images/dell-key-db.png)
+```
+
+```{group-tab} HP
+HPのサーバーはセキュアブートポリシーの細かい設定は提供していません。
+
+しかし、すべてのキーをクリアーすること、カスタムのキーをロードすることはでき、これらのサーバーはブートするのに追加のセキュアブートキーに通常は依存していないようです。
+
+![HP - Secure Boot](../../images/hp-secureboot.png)
+```
+
+```{group-tab} Lenovo
+LenovoのサーバーはファームウェアーにAMI Aptioを改変したバージョンを使用しています。
+
+Lenovoが発行したDBのキーは無効なフィールドを含んでおり、一部のシステムで起動に問題があることが知られています。NVMEの起動を正しく行うにはMicrosoft UEFI CAキーがしばしば必要です。
+
+さらに、いくつかのシステムで既存のTPMの状態のために問題が発生するのを観測しました。インストールの前にTPMをクリアーすることをお勧めします。
+
+![Lenovo - KEK](../../images/lenovo-key-kek.png)
+![Lenovo - DB](../../images/lenovo-key-db.png)
+![Lenovo - TPM](../../images/lenovo-tpm.png)
+```
+
+```{group-tab} SuperMicro
+SuperMicroのサーバーはAMI Aptioベースのファームウェアーを標準的なレイアウトで使用しています。
+
+これらのサーバーは通常のブート操作を処理するのに追加のセキュアブートキーをロードする必要はなく、結果として、すべてのDBキーを削除しても安全です。
+
+ほとんどのサーバーではデフォルトでCSM（レガシーBIOS）が有効になっていますので、すべてのアドインカードがUEFIモードで稼働していることをまず確認し、それからCSMを無効化して起動を試みることが重要です。確実に動作するようになってから、セキュアブートの設定をするのが良いです。
+
+![Aptio - Secure Boot](../../images/aptio-secureboot.png)
+![Aptio - Overview](../../images/aptio-key-overview.png)
+![Aptio - KEK](../../images/aptio-key-kek.png)
+![Aptio - DB](../../images/aptio-key-db.png)
+```
+
+````
 
 ## IncusOSのインストール
 

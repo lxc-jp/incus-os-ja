@@ -22,6 +22,10 @@
 
 * `serve_port`: HTTPSサーバーを公開するTCPポート、例えば`443`はIncusアプリケーションを`https://{hostname}.{tailnet}.ts.net:443/`で公開します。
 
+```{note}
+Tailscale Serveを有効にするには事前にダッシュボードでHTTPS証明書の設定が必要です（[ドキュメント](https://tailscale.com/kb/1153/enabling-https#configure-https)）
+```
+
 ```{warning}
-Tailscale Serveを有効に数rには事前にダッシュボードでHTTPS証明書の設定が必要です（[ドキュメント](https://tailscale.com/kb/1153/enabling-https#configure-https)）
+Incusのリッスンアドレスを変更せずに`serve_port`を`8443`に設定すると、起動時に衝突してシステムに接続できなくなります。
 ```
